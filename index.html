@@ -196,7 +196,7 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:7px 14px
         <div class="pr"><span class="pl">Rama A activa</span>
           <button class="tog on" id="tog-a" onclick="toggleBranch('a',this)"></button></div>
         <div class="pr"><span class="pl">Rama B activa</span>
-          <button class="tog on" id="tog-b" onclick="toggleBranch('b',this)"></button></div>
+          <button class="tog off" id="tog-b" onclick="toggleBranch('b',this)"></button></div>
         <div class="pr"><span class="pl">Config independiente</span>
           <button class="tog off" id="tog-ind" onclick="toggleIndep(this)"></button></div>
       </div>
@@ -207,7 +207,7 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:7px 14px
         <div class="pr"><span class="pl">CTO 2 pass %</span>
           <input class="pi" type="number" id="r2a" value="70" step="5" min="50" max="90" oninput="syncR(2);recalc()"></div>
         <div class="pr"><span class="pl">CTO 3 pass %</span>
-          <input class="pi" type="number" id="r3a" value="70" step="5" min="50" max="90" oninput="syncR(3);recalc()"></div>
+          <input class="pi" type="number" id="r3a" value="50" step="5" min="50" max="90" oninput="syncR(3);recalc()"></div>
       </div>
       <div class="pc" id="pc-rb" style="display:none;min-width:190px">
         <div class="pct">Ratio SP 1×2 — Rama B</div>
