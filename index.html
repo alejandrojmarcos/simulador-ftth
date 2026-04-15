@@ -1719,8 +1719,20 @@ function renderCables(){
 
     // Fiber grid
     const grid=document.createElement('div');
-    grid.style.cssText='display:flex;flex-wrap:wrap;gap:2px';
+    grid.style.cssText='display:flex;flex-direction:column;gap:3px';
+    let currentRow=null;
     for(let f=1;f<=cable.total;f++){
+      if((f-1)%cable.fpt===0){
+        currentRow=document.createElement('div');
+        currentRow.style.cssText='display:flex;align-items:center;gap:2px';
+        const tubeNum=Math.ceil(f/cable.fpt);
+        const tc=fc(tubeNum);
+        const tLbl=document.createElement('div');
+        tLbl.style.cssText=`width:32px;font-family:var(--mono);font-size:7.5px;font-weight:700;color:${tc.hex};flex-shrink:0;text-align:right;padding-right:5px`;
+        tLbl.textContent=`T${tubeNum}`;
+        currentRow.appendChild(tLbl);
+        grid.appendChild(currentRow);
+      }
       const fi=fiberInfo(f, cable.fpt);
       const seg=segs.find(s=>f>=s.start&&f<=s.end);
       const isFM=seg?.type==='fm';
@@ -1749,7 +1761,7 @@ function renderCables(){
       // Tooltip
       const parentRef=cable.hasParent?` → Padre #${cable.parentStart+f-1}`:'';
       cell.title=`#${f} · Tubo ${fi.tube} (${fi.tubeC.name}) · Fibra ${fi.fin} (${fi.fiberC.name})${parentRef}${seg?' · '+seg.label:''}`;
-      grid.appendChild(cell);
+      currentRow.appendChild(cell);
     }
     mapDiv.appendChild(grid);
 
