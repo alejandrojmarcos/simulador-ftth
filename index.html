@@ -699,145 +699,203 @@ function buildDesbal(T){
 
 // ════════════════════════════════════════════════════════
 //  SHARED BUILDER for HubPreco + Fusionada
-//  Layout: OLT → Splitter/Bandeja → vertical bus → each active CTO stacked top-to-bottom
-//          Each CTO row: horizontal drop left-to-right, then CTO box, then ONUs below
+//  Layout: OLT top-left → trunk → Splitter/Bandeja centered top
+//          From splitter bottom: angled drops fan out to each CTO below
+//          CTOs spread horizontally, ONUs hang below each CTO
 // ════════════════════════════════════════════════════════
 function buildVertical(T, topo){
   const svg=document.getElementById('svg');
   while(svg.children.length>1) svg.removeChild(svg.lastChild);
   const s=STATE[topo];
-  const isFus = topo==='fusionada';
+  const isFus=topo==='fusionada';
 
-  // Only active CTOs
-  const activeCTOs = s.ctoKeys.filter(k=>s.ctoOn[k]);
+  const activeCTOs=s.ctoKeys.filter(k=>s.ctoOn[k]);
+  const n=activeCTOs.length;
 
-  // Left section: OLT + splitter box
-  const SPLITTER_X = PAD+OLT_W+14;
-  const BUS_X      = SPLITTER_X+HUB_W+20;  // vertical bus x
-  const CTO_AREA_X = BUS_X+36;             // where CTO boxes start (left edge)
+  // ── Vertical zones ──────────────────────────────────
+  const TOP_PAD    = PAD+14;
+  const OLT_CY     = TOP_PAD+30;          // OLT center Y
+  const TRUNK_H    = 40;                   // vertical trunk OLT→splitter
+  const SP_CY      = OLT_CY+TRUNK_H;      // splitter center Y
+  const SP_H       = 76;                   // splitter box height
+  const SP_BOT     = SP_CY+SP_H/2;        // bottom of splitter box
+  const DROP_V     = 50;                   // vertical drop segment below splitter
+  const JUNCTION_Y = SP_BOT+DROP_V;       // Y where all drops split
+  const DROP_ANGLE = 60;                   // extra vertical before CTO top
+  const CTO_TOP_Y  = JUNCTION_Y+DROP_ANGLE; // top of all CTO boxes
 
-  // Compute each active CTO row height (CTO + optional ONUs below)
-  const CTO_ROW_GAP = 18;  // vertical gap between CTO rows
-  function ctoRowH(ck){
-    const n=s.nOnu[ck]||0;
-    return CTO_H + (n>0 ? ONU_DRP+ONU_H+10 : 8);
+  // ── CTO column widths ────────────────────────────────
+  const CTO_GAP_H = 32;  // horizontal gap between CTO columns
+  function ctoColW(ck){
+    const nOnu=s.nOnu[ck]||0;
+    return Math.max(CTO_W, nOnu>0 ? nOnu*ONU_W+(nOnu-1)*ONU_GAP : 0);
   }
 
-  // Max ONU row width — determines total SVG width
-  const maxOnuW = Math.max(...s.ctoKeys.map(ck=>{
-    const n=s.nOnu[ck]||0;
-    return n>0 ? n*ONU_W+(n-1)*ONU_GAP : 0;
-  }), 0);
-  const ctoAreaW = Math.max(CTO_W, maxOnuW);
-  const svgW = CTO_AREA_X + ctoAreaW + PAD;
+  // Total width of all active CTO columns
+  const totalCtoW = n>0
+    ? activeCTOs.reduce((sum,ck)=>sum+ctoColW(ck),0) + (n-1)*CTO_GAP_H
+    : CTO_W;
 
-  // Stack active CTO rows
-  const rowY = []; // top Y of each active CTO box
-  let curY = PAD+20;
+  // Minimum SVG width: enough for OLT+splitter on left, or CTO spread
+  const SP_W = 78; // splitter box width
+  const svgW = Math.max(totalCtoW + PAD*2, SP_W + PAD*2 + 60);
+
+  // Center everything horizontally
+  const svgCX = svgW/2;
+
+  // Splitter box centered at top
+  const SP_X = svgCX - SP_W/2;
+
+  // CTO column x positions (spread evenly centered)
+  const ctoStartX = svgCX - totalCtoW/2;
+  const colX = [];    // left edge of each column
+  const ctoCX = [];   // center x of each CTO box
+  let cx = ctoStartX;
   activeCTOs.forEach(ck=>{
-    rowY.push(curY);
-    curY += ctoRowH(ck) + CTO_ROW_GAP;
+    const cw=ctoColW(ck);
+    colX.push(cx);
+    ctoCX.push(cx + (cw-CTO_W)/2 + CTO_W/2);  // center of CTO box
+    cx += cw + CTO_GAP_H;
   });
-  const svgH = curY - CTO_ROW_GAP + PAD + 18;
 
-  // Bus spans from first to last active CTO center
-  const busTop = activeCTOs.length>0 ? rowY[0]+CTO_H/2 : PAD+20;
-  const busBot = activeCTOs.length>0 ? rowY[activeCTOs.length-1]+CTO_H/2 : busTop;
+  // OLT placed top-left, trunk goes horizontally then down to splitter
+  const OLT_X   = PAD;
+  const OLT_RIGHT= OLT_X+OLT_W;
 
-  // OLT/splitter centered on the bus midpoint
-  const oltCY = (busTop+busBot)/2;
+  // Total SVG height
+  function ctoTotalH(ck){
+    const nOnu=s.nOnu[ck]||0;
+    return CTO_H+(nOnu>0?ONU_DRP+ONU_H+10:8);
+  }
+  const maxCtoH = n>0 ? Math.max(...activeCTOs.map(ck=>ctoTotalH(ck))) : CTO_H;
+  const svgH = CTO_TOP_Y + maxCtoH + PAD + 18;
 
   svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
   svg.setAttribute('width',svgW); svg.setAttribute('height',svgH);
   svg.appendChild(mkEl('rect',{x:0,y:0,width:svgW,height:svgH,fill:'#f0f4f8'}));
 
-  // Background lane for CTO area
-  if(activeCTOs.length>0){
-    svg.appendChild(mkEl('rect',{
-      x:BUS_X+4, y:busTop-CTO_H/2-4,
-      width:svgW-BUS_X-8, height:busBot-busTop+CTO_H+8,
-      rx:10, fill:isFus?'rgba(5,150,105,.025)':'rgba(0,102,204,.025)',
-      stroke:isFus?'rgba(5,150,105,.08)':'rgba(0,102,204,.07)','stroke-width':1
-    }));
-  }
+  // ── OLT ─────────────────────────────────────────────
+  drawOLT(svg, OLT_X, OLT_CY, T.olt);
 
-  // OLT
-  drawOLT(svg,PAD,oltCY,T.olt);
+  // ── Trunk OLT → Splitter ─────────────────────────────
+  // Elbow: horizontal from OLT right to splitter center X, then vertical down
+  const preV = isFus ? T.pre_bandeja : T.pre_hub;
+  const jx   = SP_X + SP_W/2;  // splitter center x
+  // horizontal segment
+  svg.appendChild(mkEl('line',{x1:OLT_RIGHT,y1:OLT_CY,x2:jx,y2:OLT_CY,
+    stroke:lineC(preV),'stroke-width':2.5,'stroke-linecap':'round',
+    opacity:preV<=INF+5?0.2:1, filter:'url(#glow)'}));
+  // vertical segment down to splitter top
+  svg.appendChild(mkEl('line',{x1:jx,y1:OLT_CY,x2:jx,y2:SP_CY-SP_H/2,
+    stroke:lineC(preV),'stroke-width':2.5,'stroke-linecap':'round',
+    opacity:preV<=INF+5?0.2:1}));
+  if(isFus) svg.appendChild(mkTxt('⋈ troncal',{x:jx+5,y:OLT_CY-6,
+    'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#059669'}));
 
-  // ── Splitter/Bandeja box ──
-  const preV  = isFus ? T.pre_bandeja : T.pre_hub;
-  const outV  = isFus ? T.bandejaOut  : (preV<=INF+5?INF:preV-(s.lh8+s.lh8e+(s.F['sp-hub8']||0)));
+  // ── Splitter/Bandeja box (centered top) ─────────────
+  const outV = isFus
+    ? T.bandejaOut
+    : (preV<=INF+5?INF:preV-(s.lh8+s.lh8e+(s.F['sp-hub8']||0)));
   const boxLoss = isFus
     ? (s.ls8+s.ls8e+(s.F['sp-bandeja']||0)).toFixed(1)
     : (s.lh8+s.lh8e+(s.F['sp-hub8']||0)).toFixed(1);
-  const boxFaultKey = isFus?'sp-bandeja':'sp-hub8';
-  const boxFault = (s.F[boxFaultKey]||0)>0;
-  const boxTitle = isFus?'BAND.':'HUB';
-  const boxSub   = isFus?'SP 1×8 empalme':'SP 1×8';
-  const boxBrd   = boxFault?'#fb923c':isFus?'#6ee7b7':'#d1dce8';
-  const boxBg    = boxFault?'#fff7ed':isFus?'#f0fdf4':'white';
-  const boxTitleC= boxFault?'#c2410c':isFus?'#065f46':'#0066cc';
+  const boxFaultKey=isFus?'sp-bandeja':'sp-hub8';
+  const boxFault=(s.F[boxFaultKey]||0)>0;
+
+  const brdC  = boxFault?'#fb923c':isFus?'#34d399':'#93c5fd';
+  const bgC   = boxFault?'#fff7ed':isFus?'#ecfdf5':'#eff6ff';
+  const titC  = boxFault?'#c2410c':isFus?'#065f46':'#1e40af';
 
   const bx=mkEl('g',{filter:'url(#sh)'});
-  bx.appendChild(mkEl('rect',{x:SPLITTER_X,y:oltCY-36,width:HUB_W,height:72,rx:6,fill:boxBg,stroke:boxBrd,'stroke-width':boxFault?2:1.5}));
-  bx.appendChild(mkTxt(boxTitle,{x:SPLITTER_X+HUB_W/2,y:oltCY-22,'text-anchor':'middle','font-family':"'IBM Plex Sans'",'font-size':8.5,'font-weight':700,fill:boxTitleC}));
-  bx.appendChild(mkTxt(boxSub,{x:SPLITTER_X+HUB_W/2,y:oltCY-11,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#6b7280'}));
-  bx.appendChild(mkEl('line',{x1:SPLITTER_X+4,y1:oltCY-4,x2:SPLITTER_X+HUB_W-4,y2:oltCY-4,stroke:isFus?'#d1fae5':'#e2e8f0','stroke-width':1}));
-  bx.appendChild(mkTxt('Atten.',{x:SPLITTER_X+5,y:oltCY+8,'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#6b7280'}));
-  bx.appendChild(mkTxt(`−${boxLoss} dB`,{x:SPLITTER_X+HUB_W-4,y:oltCY+8,'text-anchor':'end','font-family':"'IBM Plex Mono'",'font-size':9,'font-weight':700,fill:boxFault?'#c2410c':isFus?'#065f46':'#1d4ed8'}));
-  if(boxFault) bx.appendChild(mkTxt('⚠ falla',{x:SPLITTER_X+HUB_W/2,y:oltCY+20,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':6,fill:'#fb923c'}));
-  bx.appendChild(mkEl('circle',{cx:SPLITTER_X+HUB_W,cy:oltCY,r:3,fill:isFus?'#6ee7b7':'#d1dce8'}));
+  bx.appendChild(mkEl('rect',{x:SP_X,y:SP_CY-SP_H/2,width:SP_W,height:SP_H,rx:8,
+    fill:bgC,stroke:brdC,'stroke-width':boxFault?2.5:2}));
+  // coloured top accent bar
+  bx.appendChild(mkEl('rect',{x:SP_X,y:SP_CY-SP_H/2,width:SP_W,height:24,rx:7,fill:brdC}));
+  bx.appendChild(mkEl('rect',{x:SP_X,y:SP_CY-SP_H/2+16,width:SP_W,height:8,fill:brdC})); // square bottom of accent
+  const boxTitle=isFus?'BANDEJA SP 1×8':'HUB SP 1×8';
+  bx.appendChild(mkTxt(boxTitle,{x:SP_X+SP_W/2,y:SP_CY-SP_H/2+12,'text-anchor':'middle',
+    'font-family':"'IBM Plex Sans'",'font-size':9,'font-weight':700,fill:'white'}));
+  bx.appendChild(mkTxt(isFus?'empalme fusionado':'preconectorizado',{
+    x:SP_X+SP_W/2,y:SP_CY-SP_H/2+22,'text-anchor':'middle',
+    'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'rgba(255,255,255,.8)'}));
+  // loss row
+  bx.appendChild(mkEl('line',{x1:SP_X+6,y1:SP_CY-4,x2:SP_X+SP_W-6,y2:SP_CY-4,stroke:brdC,opacity:.3,'stroke-width':1}));
+  bx.appendChild(mkTxt('Atenuación',{x:SP_X+7,y:SP_CY+8,'font-family':"'IBM Plex Mono'",'font-size':7,fill:'#6b7280'}));
+  bx.appendChild(mkTxt(`−${boxLoss} dB`,{x:SP_X+SP_W-6,y:SP_CY+8,'text-anchor':'end',
+    'font-family':"'IBM Plex Mono'",'font-size':10,'font-weight':700,fill:boxFault?'#c2410c':titC}));
+  if(boxFault) bx.appendChild(mkTxt('⚠ falla activa',{x:SP_X+SP_W/2,y:SP_CY+22,
+    'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':7,fill:'#fb923c'}));
+  // bottom port dot
+  bx.appendChild(mkEl('circle',{cx:SP_X+SP_W/2,cy:SP_CY+SP_H/2,r:4,fill:'white',stroke:brdC,'stroke-width':2}));
   svg.appendChild(bx);
 
-  // OLT → Splitter trunk
-  drawWire(svg,PAD+OLT_W,oltCY,SPLITTER_X,oltCY,preV,3,true);
-  if(isFus) svg.appendChild(mkTxt('⋈ troncal',{x:PAD+OLT_W+6,y:oltCY-8,'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#059669'}));
+  // ── Short vertical from splitter bottom → junction point ──
+  svg.appendChild(mkEl('line',{x1:jx,y1:SP_BOT,x2:jx,y2:JUNCTION_Y,
+    stroke:lineC(outV),'stroke-width':2,opacity:outV<=INF+5?0.2:1,
+    'stroke-dasharray':isFus?'6,3':'none'}));
 
-  // Splitter → BUS_X horizontal stub
-  drawWire(svg,SPLITTER_X+HUB_W,oltCY,BUS_X,oltCY,outV,2);
-
-  // Vertical bus
-  if(activeCTOs.length>0){
-    svg.appendChild(mkEl('line',{
-      x1:BUS_X,y1:busTop,x2:BUS_X,y2:busBot,
-      stroke:lineC(outV),'stroke-width':2,
-      opacity:outV<=INF+5?0.2:1,
-      'stroke-dasharray':isFus?'7,3':'none'
-    }));
+  // Horizontal distribution bar at JUNCTION_Y (if >1 active CTO)
+  if(n>1){
+    const barX1 = ctoCX[0];
+    const barX2 = ctoCX[n-1];
+    svg.appendChild(mkEl('line',{x1:barX1,y1:JUNCTION_Y,x2:barX2,y2:JUNCTION_Y,
+      stroke:lineC(outV),'stroke-width':2,opacity:outV<=INF+5?0.2:1,
+      'stroke-dasharray':isFus?'6,3':'none'}));
   }
 
-  // Each active CTO row
+  // ── Each active CTO: vertical drop + CTO box + ONUs ──
   activeCTOs.forEach((ck,ri)=>{
-    const ty   = rowY[ri];
-    const ctoCY= ty+CTO_H/2;
+    const ctoLeftX = colX[ri]+(ctoColW(ck)-CTO_W)/2;
+    const ctoTopY  = CTO_TOP_Y;
+    const ctoCenterX = ctoCX[ri];
     const inV  = T[ck+'_in'];
     const onuV = T[ck+'_onu'];
 
-    // Tap dot on bus
-    svg.appendChild(mkEl('circle',{cx:BUS_X,cy:ctoCY,r:4,fill:'white',stroke:lineC(outV),'stroke-width':1.8}));
+    // Tap dot on distribution bar
+    svg.appendChild(mkEl('circle',{cx:ctoCenterX,cy:JUNCTION_Y,r:4,
+      fill:'white',stroke:lineC(outV),'stroke-width':1.8}));
 
-    // Horizontal drop: BUS_X → CTO left edge
-    const dropLine = isFus
-      ? mkEl('line',{x1:BUS_X,y1:ctoCY,x2:CTO_AREA_X,y2:ctoCY,stroke:lineC(inV),'stroke-width':1.6,opacity:inV<=INF+5?0.2:1,'stroke-dasharray':'7,3'})
-      : mkEl('line',{x1:BUS_X,y1:ctoCY,x2:CTO_AREA_X,y2:ctoCY,stroke:lineC(inV),'stroke-width':1.6,opacity:inV<=INF+5?0.2:1});
+    // Vertical drop from distribution bar to CTO top
+    const dropLine = mkEl('line',{
+      x1:ctoCenterX, y1:JUNCTION_Y,
+      x2:ctoCenterX, y2:ctoTopY,
+      stroke:lineC(inV),'stroke-width':1.8,
+      opacity:inV<=INF+5?0.2:1,
+      'stroke-dasharray':isFus?'6,3':'none'
+    });
     svg.appendChild(dropLine);
 
-    // Drop power label — above the line, midpoint
-    const mid=(BUS_X+CTO_AREA_X)/2;
+    // Power label beside the drop line (right side, midpoint)
+    const dropMidY = (JUNCTION_Y+ctoTopY)/2;
     svg.appendChild(mkTxt(fmt(inV)?fmt(inV)+' dBm':'CORTE',{
-      x:mid,y:ctoCY-5,'text-anchor':'middle',
-      'font-family':"'IBM Plex Mono'",'font-size':7.5,'font-weight':500,fill:valC(inV)}));
-    if(isFus) svg.appendChild(mkTxt('⋈',{x:mid,y:ctoCY+10,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':8,fill:'#059669',opacity:.7}));
+      x:ctoCenterX+6, y:dropMidY,
+      'font-family':"'IBM Plex Mono'",'font-size':7.5,'font-weight':600,
+      fill:valC(inV)}));
+    if(isFus) svg.appendChild(mkTxt('⋈',{
+      x:ctoCenterX-7,y:dropMidY,
+      'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':9,
+      fill:'#059669',opacity:.8}));
+
+    // Entry dot on CTO top edge
+    svg.appendChild(mkEl('circle',{cx:ctoCenterX,cy:ctoTopY,r:4,
+      fill:'white',stroke:lineC(inV),'stroke-width':2}));
 
     // CTO box
-    drawCTO(svg,CTO_AREA_X,ty,ck,inV,onuV,topo,false,null,null,null);
+    drawCTO(svg, ctoLeftX, ctoTopY, ck, inV, onuV, topo, false, null, null, null);
 
     // ONUs below
-    const colW = Math.max(CTO_W, (s.nOnu[ck]||0)>0 ? (s.nOnu[ck]||0)*ONU_W+((s.nOnu[ck]||0)-1)*ONU_GAP : 0);
-    drawONUsBelow(svg,CTO_AREA_X,ty,ck,onuV,topo,CTO_AREA_X+(colW-CTO_W)/2,colW);
+    const cw = ctoColW(ck);
+    drawONUsBelow(svg, ctoLeftX, ctoTopY, ck, onuV, topo, colX[ri], cw);
   });
 
-  drawLegend(svg,svgW,svgH);
+  // Empty state message
+  if(n===0){
+    svg.appendChild(mkTxt('No hay CTOs activas — activá algunas en Vista → CTOs activas',{
+      x:svgW/2,y:svgH/2,'text-anchor':'middle',
+      'font-family':"'IBM Plex Sans'",'font-size':13,fill:'#94a3b8'}));
+  }
+
+  drawLegend(svg, svgW, svgH);
 }
 
 function buildHubPreco(T){ buildVertical(T,'hubpreco'); }
