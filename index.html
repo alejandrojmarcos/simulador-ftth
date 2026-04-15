@@ -138,10 +138,50 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
   <div class="hdr-btns">
     <button class="hbtn hbtn-s" onclick="resetAll()">↺ Reset</button>
     <button class="hbtn hbtn-s" onclick="doMeasure()">⚡ Medición</button>
+    <button class="hbtn hbtn-p" onclick="openFiberPlanner()" style="background:#7c3aed;border-color:#7c3aed">🔬 Fibras</button>
   </div>
 </header>
 
 <div class="workspace">
+
+<!-- ═══ FIBER PLANNER MODAL ═══ -->
+<div id="fiber-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,10,40,.6);overflow-y:auto"
+  onmousedown="event.stopPropagation()" onmousemove="event.stopPropagation()" onmouseup="event.stopPropagation()">
+  <div style="background:#f8f7ff;margin:16px auto 32px;max-width:1060px;border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.3);overflow:hidden"
+    onmousedown="event.stopPropagation()">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#6d28d9,#4c1d95);padding:13px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:var(--sans);font-size:13px;font-weight:700;color:white">🔬 Planificador de Fibras Ópticas</div>
+        <div style="font-family:var(--mono);font-size:7.5px;color:rgba(255,255,255,.65);margin-top:2px">Asignación de tubos · Código de colores · Fibras muertas · Cable padre</div>
+      </div>
+      <button id="fp-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600">✕ Cerrar</button>
+    </div>
+
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+
+      <!-- Color reference -->
+      <div style="background:white;border:1px solid #ddd6fe;border-radius:8px;padding:10px 14px">
+        <div style="font-size:7.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6d28d9;font-family:var(--mono);margin-bottom:8px">Código de colores — tubos y fibras (secuencia de 8)</div>
+        <div id="color-legend" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div style="margin-top:8px;font-size:7.5px;color:#6b7280;font-family:var(--mono)">
+          Tubo 1 = Verde · Tubo 2 = Rojo · Tubo 3 = Azul ... · Fibra 1 de cada tubo = Verde · Fibra 2 = Rojo ...
+        </div>
+      </div>
+
+      <!-- Add cable button -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="fp-add-cable" style="background:#6d28d9;color:white;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-family:var(--mono);font-size:9.5px;font-weight:700">+ Nuevo cable</button>
+        <span style="font-size:8px;color:#6b7280;font-family:var(--mono)">Cada cable puede representar un cable de distribución o un subconjunto de fibras de un cable mayor.</span>
+      </div>
+
+      <!-- Cable cards container -->
+      <div id="cable-list" style="display:flex;flex-direction:column;gap:14px"></div>
+
+    </div>
+  </div>
+</div>
   <div class="net-area" id="net-area">
     <div id="svg-wrap">
       <svg id="svg" xmlns="http://www.w3.org/2000/svg">
@@ -1464,6 +1504,437 @@ document.getElementById('net-area').addEventListener('wheel',function(e){
 })();
 
 // ════════════════════════════════════════════════════════
+//  FIBER PLANNER
+// ════════════════════════════════════════════════════════
+
+const FIBER_COLORS=[
+  {name:'Verde',   hex:'#22c55e',txt:'#fff'},
+  {name:'Rojo',    hex:'#ef4444',txt:'#fff'},
+  {name:'Azul',    hex:'#3b82f6',txt:'#fff'},
+  {name:'Amarillo',hex:'#eab308',txt:'#1a1a1a'},
+  {name:'Gris',    hex:'#94a3b8',txt:'#fff'},
+  {name:'Violeta', hex:'#a855f7',txt:'#fff'},
+  {name:'Marrón',  hex:'#92400e',txt:'#fff'},
+  {name:'Naranja', hex:'#f97316',txt:'#fff'},
+];
+
+function fc(i1){return FIBER_COLORS[(i1-1)%8];}  // fiber/tube color by 1-based index
+
+function fiberInfo(globalF, fpt=8){
+  const tube=Math.ceil(globalF/fpt);
+  const fin=((globalF-1)%fpt)+1;
+  return {tube, fin, tubeC:fc(tube), fiberC:fc(fin)};
+}
+
+let cables=[], cableSeq=0;
+
+function addCable(){
+  cables.push({
+    id:++cableSeq,
+    name:`Cable ${cableSeq}`,
+    total:32, fpt:8,
+    hasParent:false, parentName:'', parentTotal:256, parentStart:1,
+    segs:[],  // [{type:'assign'|'fm', label:'', n:1}]
+  });
+  renderCables();
+}
+function delCable(id){ cables=cables.filter(c=>c.id!==id); renderCables(); }
+function addSeg(id,type){ const c=cables.find(x=>x.id===id); if(!c) return; c.segs.push({type,label:type==='fm'?'Fibras muertas':'',n:1}); renderCables(); }
+function delSeg(id,si){ const c=cables.find(x=>x.id===id); if(!c) return; c.segs.splice(si,1); renderCables(); }
+function moveSeg(id,si,dir){
+  const c=cables.find(x=>x.id===id); if(!c) return;
+  const ni=si+dir;
+  if(ni<0||ni>=c.segs.length) return;
+  [c.segs[si],c.segs[ni]]=[c.segs[ni],c.segs[si]];
+  renderCables();
+}
+
+function computeSegs(cable){
+  let pos=1;
+  return cable.segs.map(s=>{
+    const start=pos, end=pos+s.n-1;
+    pos+=s.n;
+    return {...s,start,end,over:end>cable.total};
+  });
+}
+
+function inp(attrs={}){
+  const e=document.createElement('input');
+  Object.entries(attrs).forEach(([k,v])=>{ if(k==='style') e.style.cssText=v; else e[k]=v; });
+  e.style.fontFamily='var(--mono)';
+  e.style.fontSize='9.5px';
+  e.style.padding='4px 7px';
+  e.style.border='1px solid #d1d5db';
+  e.style.borderRadius='5px';
+  e.style.background='white';
+  e.style.color='#1f2937';
+  e.style.outline='none';
+  return e;
+}
+function sel(options, current, style=''){
+  const e=document.createElement('select');
+  e.style.cssText='font-family:var(--mono);font-size:9px;padding:4px 6px;border:1px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer;'+style;
+  options.forEach(([v,l])=>{ const o=document.createElement('option'); o.value=v; o.textContent=l; if(v==current) o.selected=true; e.appendChild(o); });
+  return e;
+}
+function lbl(text, style=''){
+  const s=document.createElement('span');
+  s.textContent=text;
+  s.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280;white-space:nowrap;'+style;
+  return s;
+}
+function row(...children){
+  const d=document.createElement('div');
+  d.style.cssText='display:flex;align-items:center;gap:7px;flex-wrap:wrap';
+  children.forEach(c=>d.appendChild(c));
+  return d;
+}
+function colorDot(hex,title='',size=10){
+  const d=document.createElement('span');
+  d.title=title;
+  d.style.cssText=`display:inline-block;width:${size}px;height:${size}px;border-radius:50%;background:${hex};border:1.5px solid rgba(0,0,0,.15);flex-shrink:0;vertical-align:middle`;
+  return d;
+}
+function badge(text,bg,color){
+  const d=document.createElement('span');
+  d.textContent=text;
+  d.style.cssText=`font-family:var(--mono);font-size:8px;font-weight:700;padding:2px 8px;border-radius:12px;background:${bg};color:${color};flex-shrink:0`;
+  return d;
+}
+function btn(text,bg,color,border,cb){
+  const b=document.createElement('button');
+  b.textContent=text;
+  b.style.cssText=`font-family:var(--mono);font-size:8.5px;font-weight:600;padding:4px 10px;border-radius:5px;background:${bg};color:${color};border:1px solid ${border};cursor:pointer`;
+  b.onclick=cb;
+  return b;
+}
+
+function renderCables(){
+  const wrap=document.getElementById('cable-list'); if(!wrap) return;
+  wrap.innerHTML='';
+
+  if(cables.length===0){
+    const p=document.createElement('p');
+    p.textContent='Sin cables. Hacé clic en "+ Nuevo cable" para empezar.';
+    p.style.cssText='font-family:var(--mono);font-size:9px;color:#9ca3af;text-align:center;padding:20px';
+    wrap.appendChild(p);
+    return;
+  }
+
+  cables.forEach(cable=>{
+    const segs=computeSegs(cable);
+    const used=cable.segs.reduce((s,x)=>s+x.n,0);
+    const free=cable.total-used;
+    const over=used>cable.total;
+
+    // ── Card container ──
+    const card=document.createElement('div');
+    card.style.cssText='background:white;border:1.5px solid #c4b5fd;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)';
+    card.onmousedown=e=>e.stopPropagation();
+
+    // ── Card header ──
+    const hdr=document.createElement('div');
+    hdr.style.cssText='background:#4c1d95;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+
+    // Cable name
+    const nameInp=inp({value:cable.name,style:'width:160px;background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:white;font-size:11px;font-weight:600'});
+    nameInp.oninput=()=>{ cable.name=nameInp.value; };
+    hdr.appendChild(nameInp);
+
+    // Total fibers
+    hdr.appendChild(lbl('Fibras totales:','color:rgba(255,255,255,.7)'));
+    const totSel=sel([[8,'8F'],[16,'16F'],[24,'24F'],[32,'32F'],[48,'48F'],[64,'64F'],[96,'96F'],[128,'128F'],[144,'144F'],[192,'192F'],[216,'216F'],[256,'256F']],
+      cable.total,'background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:white');
+    totSel.onchange=()=>{ cable.total=parseInt(totSel.value); renderCables(); };
+    hdr.appendChild(totSel);
+
+    // Fibers per tube
+    hdr.appendChild(lbl('Fibras/tubo:','color:rgba(255,255,255,.7)'));
+    const fptSel=sel([[4,'4'],[6,'6'],[8,'8'],[12,'12']],cable.fpt,'background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:white');
+    fptSel.onchange=()=>{ cable.fpt=parseInt(fptSel.value); renderCables(); };
+    hdr.appendChild(fptSel);
+
+    // Used/total indicator
+    const usedBadge=document.createElement('span');
+    usedBadge.style.cssText=`font-family:var(--mono);font-size:9px;font-weight:600;color:${over?'#fca5a5':free===0?'#86efac':'rgba(255,255,255,.8)'}`;
+    usedBadge.textContent=`${used}/${cable.total}F ${over?'⚠ EXCEDE':free>0?`· ${free} libres`:'· completo'}`;
+    hdr.appendChild(usedBadge);
+
+    // Delete cable
+    hdr.appendChild(Object.assign(btn('✕ Eliminar cable','rgba(239,68,68,.2)','#fca5a5','rgba(239,68,68,.4)',()=>delCable(cable.id)),{style:'margin-left:auto;font-family:var(--mono);font-size:8px;padding:3px 9px;border-radius:4px;cursor:pointer;background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.4)'}));
+    card.appendChild(hdr);
+
+    // ── Parent cable section ──
+    const parentBar=document.createElement('div');
+    parentBar.style.cssText='background:#f5f3ff;padding:8px 14px;border-bottom:1px solid #ddd6fe;display:flex;align-items:center;gap:9px;flex-wrap:wrap';
+
+    const parentChk=document.createElement('input');
+    parentChk.type='checkbox'; parentChk.checked=cable.hasParent;
+    parentChk.style.cssText='cursor:pointer;width:14px;height:14px;accent-color:#6d28d9';
+    const parentLbl=document.createElement('label');
+    parentLbl.style.cssText='display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--mono);font-size:9px;color:#4c1d95;font-weight:600';
+    parentLbl.appendChild(parentChk);
+    parentLbl.appendChild(document.createTextNode('Viene de cable padre'));
+    parentChk.onchange=()=>{ cable.hasParent=parentChk.checked; renderCables(); };
+    parentBar.appendChild(parentLbl);
+
+    if(cable.hasParent){
+      const pNameInp=inp({value:cable.parentName,placeholder:'Nombre cable padre',style:'width:150px'});
+      pNameInp.oninput=()=>{ cable.parentName=pNameInp.value; };
+
+      const pTotSel=sel([[32,'32F'],[48,'48F'],[64,'64F'],[96,'96F'],[128,'128F'],[144,'144F'],[192,'192F'],[216,'216F'],[256,'256F']],cable.parentTotal);
+      pTotSel.onchange=()=>{ cable.parentTotal=parseInt(pTotSel.value); renderCables(); };
+
+      const pStartInp=inp({type:'number',value:cable.parentStart,min:1,max:cable.parentTotal,style:'width:58px'});
+      pStartInp.oninput=()=>{ cable.parentStart=parseInt(pStartInp.value)||1; renderCables(); };
+
+      // Show parent fiber range info
+      const pInfo=fiberInfo(cable.parentStart, cable.fpt);
+      const pInfoEnd=fiberInfo(cable.parentStart+cable.total-1, cable.fpt);
+      const pInfoDiv=document.createElement('span');
+      pInfoDiv.style.cssText='font-family:var(--mono);font-size:8.5px;color:#6d28d9;background:#ede9fe;padding:3px 8px;border-radius:4px';
+      pInfoDiv.textContent=`Pelos ${cable.parentStart}–${cable.parentStart+cable.total-1} del cable padre`;
+
+      parentBar.appendChild(lbl('Nombre:'));
+      parentBar.appendChild(pNameInp);
+      parentBar.appendChild(lbl('Tamaño padre:'));
+      parentBar.appendChild(pTotSel);
+      parentBar.appendChild(lbl('Pelo inicio en padre:'));
+      parentBar.appendChild(pStartInp);
+      parentBar.appendChild(pInfoDiv);
+    }
+    card.appendChild(parentBar);
+
+    // ── Body: fiber map + segment table side by side ──
+    const body=document.createElement('div');
+    body.style.cssText='display:flex;gap:0;align-items:stretch';
+
+    // ── Left: fiber map ──
+    const mapDiv=document.createElement('div');
+    mapDiv.style.cssText='padding:12px 14px;border-right:1px solid #e5e7eb;min-width:220px;max-width:320px;background:#fafafa';
+    const mapTitle=document.createElement('div');
+    mapTitle.style.cssText='font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:8px';
+    mapTitle.textContent='Mapa de fibras';
+    mapDiv.appendChild(mapTitle);
+
+    // Fiber grid
+    const grid=document.createElement('div');
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:2px';
+    for(let f=1;f<=cable.total;f++){
+      const fi=fiberInfo(f, cable.fpt);
+      const seg=segs.find(s=>f>=s.start&&f<=s.end);
+      const isFM=seg?.type==='fm';
+      const isAssigned=seg&&!isFM;
+
+      const cell=document.createElement('div');
+      const size=cable.total<=32?26:cable.total<=64?20:cable.total<=128?15:11;
+      cell.style.cssText=`width:${size}px;height:${size}px;border-radius:3px;
+        background:${isFM?'#e5e7eb':isAssigned?fi.fiberC.hex:'#f1f5f9'};
+        border:1.5px solid ${isFM?'#d1d5db':isAssigned?fi.fiberC.hex:'#e2e8f0'};
+        display:flex;align-items:center;justify-content:center;cursor:default;position:relative`;
+
+      // Tube color stripe on top
+      const stripe=document.createElement('div');
+      stripe.style.cssText=`position:absolute;top:0;left:0;right:0;height:3px;background:${fi.tubeC.hex};border-radius:2px 2px 0 0`;
+      cell.appendChild(stripe);
+
+      // Fiber number label (only if large enough)
+      if(size>=20){
+        const numLbl=document.createElement('div');
+        numLbl.style.cssText=`font-family:var(--mono);font-size:${size>=26?6:5}px;color:${isFM?'#9ca3af':isAssigned?fi.fiberC.txt:'#94a3b8'};font-weight:600;margin-top:3px`;
+        numLbl.textContent=f;
+        cell.appendChild(numLbl);
+      }
+
+      // Tooltip
+      const parentRef=cable.hasParent?` → Padre #${cable.parentStart+f-1}`:'';
+      cell.title=`#${f} · Tubo ${fi.tube} (${fi.tubeC.name}) · Fibra ${fi.fin} (${fi.fiberC.name})${parentRef}${seg?' · '+seg.label:''}`;
+      grid.appendChild(cell);
+    }
+    mapDiv.appendChild(grid);
+
+    // Tube legend below map
+    const tubeLegDiv=document.createElement('div');
+    tubeLegDiv.style.cssText='display:flex;flex-wrap:wrap;gap:4px;margin-top:8px';
+    const numTubes=Math.ceil(cable.total/cable.fpt);
+    for(let t=1;t<=numTubes;t++){
+      const tc=fc(t);
+      const tl=document.createElement('div');
+      tl.style.cssText='display:flex;align-items:center;gap:3px;background:#f3f4f6;padding:2px 5px;border-radius:3px';
+      tl.appendChild(colorDot(tc.hex,tc.name,8));
+      const tspan=document.createElement('span');
+      tspan.style.cssText='font-family:var(--mono);font-size:7px;color:#374151';
+      tspan.textContent=`T${t}`;
+      tl.appendChild(tspan);
+      tubeLegDiv.appendChild(tl);
+    }
+    mapDiv.appendChild(tubeLegDiv);
+    body.appendChild(mapDiv);
+
+    // ── Right: segment table ──
+    const segsDiv=document.createElement('div');
+    segsDiv.style.cssText='flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px';
+
+    const segsTitle=document.createElement('div');
+    segsTitle.style.cssText='font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:4px';
+    segsTitle.textContent='Asignación de fibras — en orden desde la fibra 1';
+    segsDiv.appendChild(segsTitle);
+
+    if(cable.segs.length===0){
+      const empty=document.createElement('p');
+      empty.textContent='Sin segmentos todavía. Usá los botones de abajo para agregar.';
+      empty.style.cssText='font-family:var(--mono);font-size:8.5px;color:#9ca3af;padding:10px 0';
+      segsDiv.appendChild(empty);
+    }
+
+    segs.forEach((seg,si)=>{
+      const fi_s=fiberInfo(seg.start, cable.fpt);
+      const fi_e=fiberInfo(seg.end,   cable.fpt);
+
+      const segRow=document.createElement('div');
+      segRow.style.cssText=`display:flex;align-items:center;gap:8px;padding:8px 10px;
+        border-radius:7px;border:1.5px solid ${seg.over?'#fca5a5':seg.type==='fm'?'#e5e7eb':'#c4b5fd'};
+        background:${seg.over?'#fef2f2':seg.type==='fm'?'#f9fafb':'#faf5ff'};flex-wrap:wrap`;
+
+      // Move up/down
+      const moveDiv=document.createElement('div');
+      moveDiv.style.cssText='display:flex;flex-direction:column;gap:1px';
+      const upB=document.createElement('button');
+      upB.textContent='▲'; upB.style.cssText='background:none;border:1px solid #e5e7eb;border-radius:3px;padding:1px 4px;cursor:pointer;font-size:7px;color:#6b7280';
+      upB.onclick=()=>moveSeg(cable.id,si,-1);
+      const dnB=document.createElement('button');
+      dnB.textContent='▼'; dnB.style.cssText=upB.style.cssText;
+      dnB.onclick=()=>moveSeg(cable.id,si,+1);
+      moveDiv.appendChild(upB); moveDiv.appendChild(dnB);
+      segRow.appendChild(moveDiv);
+
+      // Type badge
+      segRow.appendChild(badge(seg.type==='fm'?'FM':'FIBRAS',
+        seg.type==='fm'?'#e5e7eb':'#ede9fe',
+        seg.type==='fm'?'#4b5563':'#6d28d9'));
+
+      // Fiber count
+      segRow.appendChild(lbl('Cant.:'));
+      const nInp=inp({type:'number',value:seg.n,min:1,max:cable.total,style:'width:52px'});
+      nInp.oninput=()=>{ seg.n=parseInt(nInp.value)||1; cable.segs[si].n=seg.n; renderCables(); };
+      segRow.appendChild(nInp);
+
+      // Fiber range with colors
+      const rangeDiv=document.createElement('div');
+      rangeDiv.style.cssText='display:flex;align-items:center;gap:3px;background:white;padding:3px 8px;border-radius:5px;border:1px solid #e5e7eb';
+      rangeDiv.appendChild(colorDot(fi_s.tubeC.hex,`Tubo ${fi_s.tube}: ${fi_s.tubeC.name}`));
+      rangeDiv.appendChild(colorDot(fi_s.fiberC.hex,`Fibra ${fi_s.fin}: ${fi_s.fiberC.name}`));
+      const rangeSpan=document.createElement('span');
+      rangeSpan.style.cssText='font-family:var(--mono);font-size:9px;font-weight:600;color:#374151';
+      rangeSpan.textContent=`#${seg.start}`;
+      if(seg.n>1){
+        rangeDiv.appendChild(document.createTextNode(' '));
+        const arrow=document.createElement('span');
+        arrow.textContent='→'; arrow.style.cssText='color:#9ca3af;font-size:9px';
+        rangeDiv.appendChild(arrow);
+        rangeDiv.appendChild(colorDot(fi_e.tubeC.hex,`Tubo ${fi_e.tube}`));
+        rangeDiv.appendChild(colorDot(fi_e.fiberC.hex,`Fibra ${fi_e.fin}`));
+        rangeSpan.textContent+=` → #${seg.end}`;
+      }
+      rangeDiv.appendChild(rangeSpan);
+      segRow.appendChild(rangeDiv);
+
+      // Parent cable reference
+      if(cable.hasParent){
+        const ps=cable.parentStart+seg.start-1;
+        const pe=cable.parentStart+seg.end-1;
+        const pfi_s=fiberInfo(ps, cable.fpt);
+        const pfi_e=fiberInfo(pe, cable.fpt);
+        const parentRef=document.createElement('div');
+        parentRef.style.cssText='display:flex;align-items:center;gap:3px;background:#ede9fe;padding:3px 8px;border-radius:5px';
+        const pLabel=document.createElement('span');
+        pLabel.style.cssText='font-family:var(--mono);font-size:7.5px;color:#6d28d9;font-weight:600';
+        pLabel.textContent=`Padre: `;
+        parentRef.appendChild(pLabel);
+        parentRef.appendChild(colorDot(pfi_s.tubeC.hex,pfi_s.tubeC.name));
+        parentRef.appendChild(colorDot(pfi_s.fiberC.hex,pfi_s.fiberC.name));
+        const pSpan=document.createElement('span');
+        pSpan.style.cssText='font-family:var(--mono);font-size:9px;font-weight:600;color:#4c1d95';
+        pSpan.textContent=`#${ps}`;
+        if(seg.n>1){
+          const arr=document.createElement('span'); arr.textContent='→'; arr.style.cssText='color:#9ca3af';
+          parentRef.appendChild(pSpan); parentRef.appendChild(arr);
+          parentRef.appendChild(colorDot(pfi_e.tubeC.hex,pfi_e.tubeC.name));
+          parentRef.appendChild(colorDot(pfi_e.fiberC.hex,pfi_e.fiberC.name));
+          const pSpan2=document.createElement('span');
+          pSpan2.style.cssText=pSpan.style.cssText;
+          pSpan2.textContent=`#${pe}`;
+          parentRef.appendChild(pSpan2);
+        } else {
+          parentRef.appendChild(pSpan);
+        }
+        segRow.appendChild(parentRef);
+      }
+
+      // Label (only for assign type)
+      if(seg.type!=='fm'){
+        const labelInp=inp({value:seg.label,placeholder:'Descripción (ej: Hub → CTO A1)',style:'flex:1;min-width:180px'});
+        labelInp.oninput=()=>{ cable.segs[si].label=labelInp.value; };
+        segRow.appendChild(labelInp);
+      }
+
+      if(seg.over){
+        const warn=document.createElement('span');
+        warn.style.cssText='font-family:var(--mono);font-size:7.5px;color:#dc2626;font-weight:600';
+        warn.textContent=`⚠ Excede cable (hasta fibra ${cable.total})`;
+        segRow.appendChild(warn);
+      }
+
+      // Delete segment
+      segRow.appendChild(btn('✕','#fee2e2','#dc2626','#fca5a5',()=>delSeg(cable.id,si)));
+      segsDiv.appendChild(segRow);
+    });
+
+    // Add buttons
+    const addRow=document.createElement('div');
+    addRow.style.cssText='display:flex;gap:7px;margin-top:4px;align-items:center;flex-wrap:wrap;padding-top:6px;border-top:1px solid #e5e7eb';
+    addRow.appendChild(btn('+ Asignación','#ede9fe','#6d28d9','#c4b5fd',()=>addSeg(cable.id,'assign')));
+    addRow.appendChild(btn('+ Fibras muertas','#f3f4f6','#374151','#d1d5db',()=>addSeg(cable.id,'fm')));
+    if(free>0&&!over){
+      const freeSpan=document.createElement('span');
+      freeSpan.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280';
+      freeSpan.textContent=`${free} fibra${free!==1?'s':''} sin asignar`;
+      addRow.appendChild(freeSpan);
+    }
+    segsDiv.appendChild(addRow);
+
+    body.appendChild(segsDiv);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  });
+}
+
+function buildColorLegend(){
+  const wrap=document.getElementById('color-legend'); if(!wrap) return;
+  wrap.innerHTML='';
+  FIBER_COLORS.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.style.cssText='display:flex;align-items:center;gap:5px;background:white;border:1px solid #e5e7eb;border-radius:6px;padding:5px 10px';
+    d.appendChild(colorDot(c.hex,c.name,14));
+    const info=document.createElement('div');
+    info.innerHTML=`<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:#1f2937">${c.name}</div><div style="font-family:var(--mono);font-size:7px;color:#6b7280">Posición ${i+1}</div>`;
+    d.appendChild(info);
+    wrap.appendChild(d);
+  });
+}
+
+function openFiberPlanner(){
+  const modal=document.getElementById('fiber-modal');
+  modal.style.display='block';
+  buildColorLegend();
+  if(cables.length===0) addCable();
+  else renderCables();
+}
+function closeFiberPlanner(){
+  document.getElementById('fiber-modal').style.display='none';
+}
+
+// ════════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════════
 buildPanels();
@@ -1474,6 +1945,10 @@ addLog('<span class="lok">✔ Seleccioná la topología en el header</span>');
 addLog('<span class="linf">Desbalanceada · HUB Preco 1×8 · Fusionada Tradicional</span>');
 recalc();
 setTimeout(fitZoom,80);
+
+// Wire fiber planner buttons (after DOM ready)
+document.getElementById('fp-close-btn').onclick=()=>closeFiberPlanner();
+document.getElementById('fp-add-cable').onclick=()=>addCable();
 </script>
 </body>
 </html>
