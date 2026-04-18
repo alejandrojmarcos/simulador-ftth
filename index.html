@@ -139,6 +139,7 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
     <button class="hbtn hbtn-s" onclick="resetAll()">↺ Reset</button>
     <button class="hbtn hbtn-s" onclick="doMeasure()">⚡ Medición</button>
     <button class="hbtn hbtn-p" onclick="openFiberPlanner()" style="background:#7c3aed;border-color:#7c3aed">🔬 Fibras</button>
+    <button class="hbtn hbtn-p" onclick="openPON()" style="background:#0e7490;border-color:#0e7490">🔁 Trazabilidad PON</button>
   </div>
 </header>
 
@@ -179,6 +180,26 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
       <!-- Cable cards container -->
       <div id="cable-list" style="display:flex;flex-direction:column;gap:14px"></div>
 
+    </div>
+  </div>
+</div>
+<!-- ═══ PON TRACER MODAL ═══ -->
+<div id="pon-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(5,20,40,.65);overflow-y:auto"
+  onmousedown="event.stopPropagation()" onmousemove="event.stopPropagation()" onmouseup="event.stopPropagation()">
+  <div style="background:#f0f9ff;margin:16px auto 32px;max-width:1200px;border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.35)"
+    onmousedown="event.stopPropagation()">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0e7490,#0c4a6e);padding:13px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0">
+      <div>
+        <div style="font-family:var(--sans);font-size:13px;font-weight:700;color:white">🔁 Trazabilidad PON — GPON 2× SP 1×8</div>
+        <div style="font-family:var(--mono);font-size:7.5px;color:rgba(255,255,255,.65);margin-top:2px">OLT shelf/slot/port → SP Primario → CTO SP Secundario → ONU · Detección de inconsistencias lógico/físicas</div>
+      </div>
+      <button id="pon-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600">✕ Cerrar</button>
+    </div>
+
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px" id="pon-body">
+      <!-- Dynamic content rendered by JS -->
     </div>
   </div>
 </div>
@@ -1947,7 +1968,656 @@ function closeFiberPlanner(){
 }
 
 // ════════════════════════════════════════════════════════
-//  INIT
+//  PON TRACER v2 — tabla + drag & drop + colores de fibra
+// ════════════════════════════════════════════════════════
+
+// Color code (same 8-color sequence as fiber planner)
+const PON_COLORS=[
+  {name:'Verde',   hex:'#22c55e',dark:'#14532d'},
+  {name:'Rojo',    hex:'#ef4444',dark:'#7f1d1d'},
+  {name:'Azul',    hex:'#3b82f6',dark:'#1e3a5f'},
+  {name:'Amarillo',hex:'#eab308',dark:'#713f12'},
+  {name:'Gris',    hex:'#94a3b8',dark:'#1e293b'},
+  {name:'Violeta', hex:'#a855f7',dark:'#3b0764'},
+  {name:'Marrón',  hex:'#92400e',dark:'#451a03'},
+  {name:'Naranja', hex:'#f97316',dark:'#7c2d12'},
+];
+function ponColor(i1){ return PON_COLORS[(i1-1)%8]; }
+// Given a 1-based fiber number and fibers-per-tube (8), return tube+fiber colors
+function ponFiberInfo(fNum, fpt=8){
+  const tube=Math.ceil(fNum/fpt);
+  const fin=((fNum-1)%fpt)+1;
+  return {tube, fin, tubeC:ponColor(tube), fiberC:ponColor(fin)};
+}
+
+// ── Network model ────────────────────────────────────────
+// OLT → ports (each port feeds one SP Primario)
+// SP Primario 1×8 → ports (each port connects to one CTO)
+// CTO (has SP Secundario 1×8) → ports (each port has one ONU/client)
+// ONU has: ctoId, ctoPort (physical) + oltPortId (logical assignment)
+
+let ponNet=null, ponEditId=null, ponDragOnu=null;
+
+function ponMakeNet(){
+  return {
+    olt:{ shelf:1, slot:1,
+      ports: Array.from({length:8},(_,i)=>({id:'op'+(i+1), num:i+1, spId:null, fiberNum:i+1}))
+    },
+    splitters: [
+      {id:'sp1', name:'SP Primario 1', oltPortId:'op1',
+       ports:Array.from({length:8},(_,i)=>({id:'s1p'+(i+1),num:i+1,ctoId:null}))},
+      {id:'sp2', name:'SP Primario 2', oltPortId:'op2',
+       ports:Array.from({length:8},(_,i)=>({id:'s2p'+(i+1),num:i+1,ctoId:null}))},
+    ],
+    ctos:[
+      {id:'cto1',name:'CTO 1', spId:'sp1', spPort:1,
+       ports:Array.from({length:8},(_,i)=>({id:'c1p'+(i+1),num:i+1,onuId:null}))},
+      {id:'cto2',name:'CTO 2', spId:'sp1', spPort:2,
+       ports:Array.from({length:8},(_,i)=>({id:'c2p'+(i+1),num:i+1,onuId:null}))},
+      {id:'cto3',name:'CTO 3', spId:'sp2', spPort:1,
+       ports:Array.from({length:8},(_,i)=>({id:'c3p'+(i+1),num:i+1,onuId:null}))},
+      // CTO 4: físicamente en SP2-P2 — toma incorrecta
+      {id:'cto4',name:'CTO 4', spId:'sp2', spPort:2,
+       ports:Array.from({length:8},(_,i)=>({id:'c4p'+(i+1),num:i+1,onuId:null}))},
+    ],
+    onus:[],
+    _seq:0,
+  };
+}
+
+function ponAddONU(net, name, ctoId, ctoPortNum, oltPortId){
+  const id='onu'+(++net._seq);
+  net.onus.push({id, name, ctoId, ctoPort:ctoPortNum, oltPortId});
+  const cto=net.ctos.find(c=>c.id===ctoId);
+  if(cto){ const p=cto.ports.find(p=>p.num===ctoPortNum); if(p) p.onuId=id; }
+  return id;
+}
+
+function ponLinkOltSp(net, oltPortId, spId){
+  const op=net.olt.ports.find(p=>p.id===oltPortId); if(op) op.spId=spId;
+  const sp=net.splitters.find(s=>s.id===spId); if(sp) sp.oltPortId=oltPortId;
+}
+function ponLinkSpCto(net, spId, spPortNum, ctoId){
+  const sp=net.splitters.find(s=>s.id===spId); if(!sp) return;
+  const p=sp.ports.find(p=>p.num===spPortNum); if(p) p.ctoId=ctoId;
+  const cto=net.ctos.find(c=>c.id===ctoId); if(cto){ cto.spId=spId; cto.spPort=spPortNum; }
+}
+
+function ponInit(){
+  ponNet=ponMakeNet();
+  // Wire OLT ports → splitters
+  ponLinkOltSp(ponNet,'op1','sp1');
+  ponLinkOltSp(ponNet,'op2','sp2');
+  // Wire splitters → CTOs
+  ponLinkSpCto(ponNet,'sp1',1,'cto1');
+  ponLinkSpCto(ponNet,'sp1',2,'cto2');
+  ponLinkSpCto(ponNet,'sp2',1,'cto3');
+  ponLinkSpCto(ponNet,'sp2',2,'cto4');
+  // Sample clients
+  ponAddONU(ponNet,'García, Juan',      'cto1',1,'op1');
+  ponAddONU(ponNet,'López, María',      'cto1',2,'op1');
+  ponAddONU(ponNet,'Martínez, Carlos',  'cto2',1,'op1');
+  ponAddONU(ponNet,'Rodríguez, Ana',    'cto3',1,'op2');
+  // CTO4 mal tomada — clientes asignados a op1 pero CTO está en SP2 (op2)
+  ponAddONU(ponNet,'Pérez, Luis',       'cto4',1,'op1');  // ❌ no sincroniza
+  ponAddONU(ponNet,'Sánchez, Laura',    'cto4',2,'op1');  // ❌ no sincroniza
+  // Díaz: le cambiaron la asignación a op2 como parche — sincroniza pero físicamente la CTO sigue mal
+  ponAddONU(ponNet,'Díaz, Roberto',     'cto4',3,'op2');  // ⚠ parcheado
+}
+
+// ── Check: does ONU sync? ─────────────────────────────────
+// Returns {sync, status:'ok'|'mismatch'|'patched', physOltPortId, logicOltPortId, reason}
+function ponCheck(onu){
+  const cto=ponNet.ctos.find(c=>c.id===onu.ctoId);
+  if(!cto) return {sync:false,status:'mismatch',reason:'CTO no encontrada'};
+  const sp=ponNet.splitters.find(s=>s.id===cto.spId);
+  if(!sp) return {sync:false,status:'mismatch',reason:'CTO sin SP Primario'};
+  const physOltPortId=sp.oltPortId;
+  const logicOltPortId=onu.oltPortId;
+  const match=physOltPortId===logicOltPortId;
+  if(match) return {sync:true,status:'ok',physOltPortId,logicOltPortId,reason:'OK'};
+  // Mismatch — but does it actually sync? Only if logic port == phys port
+  return {sync:false,status:'mismatch',physOltPortId,logicOltPortId,
+    reason:`Físico: ${physOltPortId} · Asignado: ${logicOltPortId}`};
+}
+
+// ── Fiber dot helper ─────────────────────────────────────
+function ponFiberDot(fNum, title='', size=14){
+  const fi=ponFiberInfo(fNum);
+  const wrap=document.createElement('div');
+  wrap.title=title||`Fibra ${fNum}: Tubo ${fi.tube} (${fi.tubeC.name}) · Fibra ${fi.fin} (${fi.fiberC.name})`;
+  wrap.style.cssText=`display:inline-flex;align-items:center;gap:3px;flex-shrink:0`;
+  // Tube dot
+  const td=document.createElement('span');
+  td.style.cssText=`width:${size}px;height:${size}px;border-radius:50%;background:${fi.tubeC.hex};border:2px solid rgba(0,0,0,.12);flex-shrink:0;display:inline-block`;
+  td.title=`Tubo ${fi.tube}: ${fi.tubeC.name}`;
+  // Fiber dot (smaller, overlapping)
+  const fd=document.createElement('span');
+  fd.style.cssText=`width:${size-4}px;height:${size-4}px;border-radius:50%;background:${fi.fiberC.hex};border:2px solid rgba(0,0,0,.12);flex-shrink:0;display:inline-block`;
+  fd.title=`Fibra ${fi.fin}: ${fi.fiberC.name}`;
+  wrap.appendChild(td); wrap.appendChild(fd);
+  return wrap;
+}
+
+// ── Main render ──────────────────────────────────────────
+function ponRender(){
+  const body=document.getElementById('pon-body');
+  if(!body||!ponNet) return;
+  body.innerHTML='';
+
+  const net=ponNet;
+
+  // ══ TOP BAR: OLT config + splitter setup + add buttons ══
+  const topBar=document.createElement('div');
+  topBar.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start';
+
+  // OLT info card
+  const oltCard=ponCard('OLT — Shelf/Slot','#0c4a6e','#e0f2fe','#0369a1');
+  oltCard.style.minWidth='180px';
+  const oltGrid=document.createElement('div');
+  oltGrid.style.cssText='display:flex;flex-direction:column;gap:3px';
+  net.olt.ports.filter(p=>p.spId).forEach(p=>{
+    const sp=net.splitters.find(s=>s.id===p.spId);
+    const fi=ponFiberInfo(p.fiberNum);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:5px;padding:4px 6px;background:white;border-radius:5px;border:1px solid #bae6fd';
+    row.appendChild(ponFiberDot(p.fiberNum,`Puerto ${p.num} · Pelo ${p.fiberNum}`));
+    const lbl=document.createElement('span');
+    lbl.style.cssText='font-family:var(--mono);font-size:8.5px;color:#0c4a6e';
+    lbl.innerHTML=`<b>P${p.num}</b> → ${sp?sp.name:'libre'}`;
+    row.appendChild(lbl);
+    oltGrid.appendChild(row);
+  });
+  oltCard.appendChild(oltGrid);
+
+  // Splitters card
+  const spCard=ponCard('SP Primarios 1×8','#064e3b','#d1fae5','#059669');
+  spCard.style.minWidth='220px';
+  net.splitters.forEach(sp=>{
+    const spFeed=net.olt.ports.find(p=>p.id===sp.oltPortId);
+    const spDiv=document.createElement('div');
+    spDiv.style.cssText='margin-bottom:6px;padding:6px 8px;background:white;border-radius:6px;border:1.5px solid #a7f3d0';
+
+    const spHdr=document.createElement('div');
+    spHdr.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:4px';
+    if(spFeed) spHdr.appendChild(ponFiberDot(spFeed.fiberNum,`Fibra OLT P${spFeed.num}`));
+    const spName=document.createElement('b');
+    spName.style.cssText='font-family:var(--mono);font-size:9px;color:#064e3b';
+    spName.textContent=`${sp.name} ← OLT P${spFeed?spFeed.num:'?'}`;
+    spHdr.appendChild(spName);
+    spDiv.appendChild(spHdr);
+
+    // SP ports
+    const spPorts=document.createElement('div');
+    spPorts.style.cssText='display:flex;flex-wrap:wrap;gap:3px';
+    sp.ports.forEach(p=>{
+      const cto=p.ctoId?net.ctos.find(c=>c.id===p.ctoId):null;
+      const pd=document.createElement('div');
+      pd.style.cssText=`width:26px;height:26px;border-radius:4px;border:1.5px solid ${cto?'#34d399':'#d1d5db'};
+        background:${cto?'#ecfdf5':'#f9fafb'};display:flex;align-items:center;justify-content:center;
+        cursor:default;font-family:var(--mono);font-size:7px;color:${cto?'#065f46':'#9ca3af'}`;
+      pd.textContent=cto?cto.name.replace('CTO ',''):`P${p.num}`;
+      pd.title=`SP Puerto ${p.num}${cto?' → '+cto.name:''}`;
+      // Drop target for CTO drag
+      pd.dataset.spId=sp.id; pd.dataset.spPort=p.num;
+      pd.addEventListener('dragover',e=>{e.preventDefault();pd.style.outline='2px solid #fbbf24';});
+      pd.addEventListener('dragleave',()=>{pd.style.outline='none';});
+      pd.addEventListener('drop',e=>{
+        e.preventDefault(); pd.style.outline='none';
+        if(ponDragOnu?.type==='cto'){
+          const dragCto=net.ctos.find(c=>c.id===ponDragOnu.id);
+          if(!dragCto) return;
+          // Remove from old SP
+          net.splitters.forEach(s=>s.ports.forEach(pp=>{if(pp.ctoId===dragCto.id)pp.ctoId=null;}));
+          p.ctoId=dragCto.id; dragCto.spId=sp.id; dragCto.spPort=p.num;
+          ponDragOnu=null; ponRender();
+        }
+      });
+      spPorts.appendChild(pd);
+    });
+    spDiv.appendChild(spPorts);
+    spCard.appendChild(spDiv);
+  });
+
+  // Add buttons card
+  const actCard=ponCard('Acciones','#1e293b','#f8fafc','#64748b');
+  actCard.style.minWidth='160px';
+  const addOnuB=ponBtn('+ Cliente','#0e7490','white',()=>ponShowAddOnu());
+  const addCtoB=ponBtn('+ CTO','#0284c7','white',()=>ponShowAddCto());
+  const addSpB= ponBtn('+ SP Primario','#059669','white',()=>ponShowAddSp());
+  const resetB= ponBtn('↺ Ejemplo','#64748b','white',()=>{ponInit();ponRender();});
+  [addOnuB,addCtoB,addSpB,resetB].forEach(b=>{b.style.width='100%';b.style.marginBottom='4px';actCard.appendChild(b);});
+
+  topBar.appendChild(oltCard);
+  topBar.appendChild(spCard);
+  topBar.appendChild(actCard);
+  body.appendChild(topBar);
+
+  // ══ STATS BAR ══
+  let nOk=0,nBad=0,nTotal=net.onus.length;
+  net.onus.forEach(o=>{ const r=ponCheck(o); if(r.sync) nOk++; else nBad++; });
+  const stats=document.createElement('div');
+  stats.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:white;border-radius:8px;border:1px solid #e5e7eb';
+  stats.innerHTML=`
+    <span style="font-family:var(--mono);font-size:8.5px;color:#374151;font-weight:700">Estado de red:</span>
+    <span style="background:#dcfce7;color:#15803d;font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px">✔ ${nOk} sincronizan</span>
+    <span style="background:#fee2e2;color:#991b1b;font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px">✖ ${nBad} no sincronizan</span>
+    <span style="font-family:var(--mono);font-size:8px;color:#6b7280">${nTotal} ONUs totales</span>
+    <span style="font-family:var(--mono);font-size:7.5px;color:#9ca3af;margin-left:auto">Arrastrá una fila ONU entre CTOs · Arrastrá una CTO entre puertos del SP</span>`;
+  body.appendChild(stats);
+
+  // ══ MAIN TABLE — one section per CTO ══
+  net.ctos.forEach(cto=>{
+    const sp=net.splitters.find(s=>s.id===cto.spId);
+    const feedOltPort=sp?net.olt.ports.find(p=>p.id===sp.oltPortId):null;
+    const ctoOnus=net.onus.filter(o=>o.ctoId===cto.id);
+    const anyBad=ctoOnus.some(o=>!ponCheck(o).sync);
+
+    const section=document.createElement('div');
+    section.style.cssText=`background:white;border-radius:10px;overflow:hidden;
+      border:2px solid ${anyBad?'#fca5a5':'#d1d5db'};box-shadow:0 1px 4px rgba(0,0,0,.06)`;
+
+    // CTO header — draggable
+    const ctoHdr=document.createElement('div');
+    ctoHdr.draggable=true;
+    ctoHdr.style.cssText=`display:flex;align-items:center;gap:10px;padding:9px 14px;
+      background:${anyBad?'#fef2f2':'#f8fafc'};border-bottom:1px solid ${anyBad?'#fca5a5':'#e5e7eb'};
+      cursor:grab`;
+    ctoHdr.addEventListener('dragstart',e=>{
+      ponDragOnu={type:'cto',id:cto.id};
+      e.dataTransfer.effectAllowed='move';
+      ctoHdr.style.opacity='.5';
+    });
+    ctoHdr.addEventListener('dragend',()=>{ ctoHdr.style.opacity='1'; });
+
+    // CTO fiber dots (fiber in SP)
+    if(feedOltPort) ctoHdr.appendChild(ponFiberDot(feedOltPort.fiberNum,`OLT fibra ${feedOltPort.fiberNum} → ${sp?.name}`,16));
+    const ctoTitleDiv=document.createElement('div');
+    ctoTitleDiv.style.cssText='flex:1';
+    ctoTitleDiv.innerHTML=`
+      <div style="font-family:var(--sans);font-size:11px;font-weight:700;color:${anyBad?'#991b1b':'#1f2937'}">${cto.name}
+        <span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:6px">SP: ${sp?sp.name:'⚠ sin SP'} · Puerto ${cto.spPort||'?'}</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:8px;color:#6b7280">
+        Ruta física: OLT Shelf ${net.olt.shelf}/Slot ${net.olt.slot}/Port ${feedOltPort?feedOltPort.num:'?'}
+        ${anyBad?'<span style="color:#dc2626;font-weight:700;margin-left:8px">⚠ Clientes con inconsistencia</span>':''}
+      </div>`;
+    ctoHdr.appendChild(ctoTitleDiv);
+
+    // Edit CTO name button
+    const editCtoB=ponIconBtn('✏',()=>ponEditCto(cto.id));
+    ctoHdr.appendChild(editCtoB);
+    // Delete CTO button
+    if(ctoOnus.length===0){
+      const delCtoB=ponIconBtn('✕',()=>{
+        net.ctos=net.ctos.filter(c=>c.id!==cto.id);
+        net.splitters.forEach(s=>s.ports.forEach(p=>{if(p.ctoId===cto.id)p.ctoId=null;}));
+        ponRender();
+      },'#fee2e2','#dc2626');
+      ctoHdr.appendChild(delCtoB);
+    }
+    section.appendChild(ctoHdr);
+
+    // ── Client table ──
+    const table=document.createElement('table');
+    table.style.cssText='width:100%;border-collapse:collapse;font-family:var(--mono);font-size:8.5px';
+
+    // Header row
+    const thead=document.createElement('thead');
+    thead.innerHTML=`<tr style="background:#f1f5f9">
+      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Cliente</th>
+      <th style="padding:6px 10px;text-align:center;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Puerto CTO</th>
+      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">OLT asignado</th>
+      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Ruta física</th>
+      <th style="padding:6px 10px;text-align:center;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Estado</th>
+      <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb"></th>
+    </tr>`;
+    table.appendChild(thead);
+
+    const tbody=document.createElement('tbody');
+
+    if(ctoOnus.length===0){
+      const emptyRow=document.createElement('tr');
+      emptyRow.innerHTML=`<td colspan="6" style="padding:12px 14px;color:#9ca3af;text-align:center;font-style:italic">Sin clientes en esta CTO — arrastrá ONUs desde otras CTOs o agregá nuevos</td>`;
+      // Drop target for empty CTO
+      emptyRow.addEventListener('dragover',e=>{e.preventDefault();emptyRow.style.background='#dbeafe';});
+      emptyRow.addEventListener('dragleave',()=>{emptyRow.style.background='';});
+      emptyRow.addEventListener('drop',e=>{
+        e.preventDefault(); emptyRow.style.background='';
+        if(ponDragOnu?.type==='onu') ponMoveOnu(ponDragOnu.id, cto.id, null);
+      });
+      tbody.appendChild(emptyRow);
+    }
+
+    ctoOnus.forEach((onu,oi)=>{
+      const r=ponCheck(onu);
+      const isEdit=ponEditId===onu.id;
+      const logicPort=net.olt.ports.find(p=>p.id===onu.oltPortId);
+      const physPort=feedOltPort;
+      const rowBg=oi%2===0?'white':'#fafafa';
+
+      const tr=document.createElement('tr');
+      tr.style.cssText=`background:${r.sync?rowBg:'#fff5f5'};cursor:grab;
+        border-left:3px solid ${r.sync?'transparent':'#ef4444'}`;
+      tr.draggable=true;
+      tr.addEventListener('dragstart',e=>{
+        ponDragOnu={type:'onu',id:onu.id};
+        e.dataTransfer.effectAllowed='move';
+        tr.style.opacity='.4';
+      });
+      tr.addEventListener('dragend',()=>{ tr.style.opacity='1'; ponDragOnu=null; });
+
+      if(isEdit){
+        // ── Inline edit row ──
+        const editTd=document.createElement('td');
+        editTd.colSpan=6;
+        editTd.style.cssText='padding:10px 14px;background:#fffbeb;border-bottom:2px solid #fde68a';
+        editTd.appendChild(ponEditForm(onu, ()=>{ ponEditId=null; ponRender(); }));
+        tr.appendChild(editTd);
+      } else {
+        // ── Display row ──
+        // Client name
+        const tdName=document.createElement('td');
+        tdName.style.cssText='padding:7px 10px;font-weight:600;color:#1f2937';
+        tdName.textContent=onu.name;
+
+        // CTO port
+        const tdPort=document.createElement('td');
+        tdPort.style.cssText='padding:7px 10px;text-align:center;color:#374151';
+        tdPort.textContent=`P${onu.ctoPort}`;
+
+        // OLT assigned (with fiber dots)
+        const tdLogic=document.createElement('td');
+        tdLogic.style.cssText='padding:7px 10px';
+        const logicDiv=document.createElement('div');
+        logicDiv.style.cssText='display:flex;align-items:center;gap:5px';
+        if(logicPort) logicDiv.appendChild(ponFiberDot(logicPort.fiberNum,`Fibra ${logicPort.fiberNum}`));
+        const logicLbl=document.createElement('span');
+        logicLbl.style.cssText=`color:${r.sync?'#374151':'#dc2626'};font-weight:${r.sync?'400':'700'}`;
+        logicLbl.textContent=`S${net.olt.shelf}/Sl${net.olt.slot}/P${logicPort?logicPort.num:'?'}`;
+        logicDiv.appendChild(logicLbl);
+        tdLogic.appendChild(logicDiv);
+
+        // Physical route (with fiber dots)
+        const tdPhys=document.createElement('td');
+        tdPhys.style.cssText='padding:7px 10px';
+        const physDiv=document.createElement('div');
+        physDiv.style.cssText='display:flex;align-items:center;gap:5px';
+        if(physPort) physDiv.appendChild(ponFiberDot(physPort.fiberNum,`Fibra ${physPort.fiberNum}`));
+        const physLbl=document.createElement('span');
+        physLbl.style.cssText=`color:${r.sync?'#374151':'#15803d'}`;
+        physLbl.textContent=`S${net.olt.shelf}/Sl${net.olt.slot}/P${physPort?physPort.num:'?'}`;
+        physDiv.appendChild(physLbl);
+        tdPhys.appendChild(physDiv);
+
+        // Status
+        const tdStatus=document.createElement('td');
+        tdStatus.style.cssText='padding:7px 10px;text-align:center';
+        const badge=document.createElement('span');
+        badge.style.cssText=`font-family:var(--mono);font-size:8px;font-weight:700;padding:3px 9px;border-radius:10px;
+          background:${r.sync?'#dcfce7':'#fee2e2'};color:${r.sync?'#15803d':'#991b1b'}`;
+        badge.textContent=r.sync?'✔ SYNC':'✖ MISMATCH';
+        if(!r.sync){
+          const tip=document.createElement('div');
+          tip.style.cssText='font-size:7px;color:#dc2626;margin-top:2px;font-family:var(--mono)';
+          tip.textContent=`Físico P${physPort?physPort.num:'?'} ≠ Lógico P${logicPort?logicPort.num:'?'}`;
+          tdStatus.appendChild(badge); tdStatus.appendChild(tip);
+        } else {
+          tdStatus.appendChild(badge);
+        }
+
+        // Actions
+        const tdAct=document.createElement('td');
+        tdAct.style.cssText='padding:7px 8px;white-space:nowrap';
+        const editB=ponIconBtn('✏',()=>{ ponEditId=onu.id; ponRender(); });
+        const delB=ponIconBtn('✕',()=>{ ponDeleteOnu(onu.id); ponRender(); },'#fee2e2','#dc2626');
+        tdAct.appendChild(editB); tdAct.appendChild(delB);
+
+        tr.appendChild(tdName); tr.appendChild(tdPort);
+        tr.appendChild(tdLogic); tr.appendChild(tdPhys);
+        tr.appendChild(tdStatus); tr.appendChild(tdAct);
+      }
+
+      // Drop target on rows
+      tr.addEventListener('dragover',e=>{
+        if(ponDragOnu?.type==='onu'&&ponDragOnu.id!==onu.id){
+          e.preventDefault(); tr.style.borderBottom='2px solid #fbbf24';
+        }
+      });
+      tr.addEventListener('dragleave',()=>{ tr.style.borderBottom=''; });
+      tr.addEventListener('drop',e=>{
+        e.preventDefault(); tr.style.borderBottom='';
+        if(ponDragOnu?.type==='onu'&&ponDragOnu.id!==onu.id){
+          // Swap CTOs: move dragged ONU to this CTO, finding a free port
+          ponMoveOnu(ponDragOnu.id, cto.id, null);
+        }
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    // Drop zone for the whole section
+    section.addEventListener('dragover',e=>{
+      if(ponDragOnu?.type==='onu') e.preventDefault();
+    });
+    section.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(ponDragOnu?.type==='onu') ponMoveOnu(ponDragOnu.id, cto.id, null);
+    });
+
+    table.appendChild(tbody);
+    section.appendChild(table);
+    body.appendChild(section);
+  });
+
+  // ── Quick fix suggestions ─────────────────────────────
+  const badOnus=net.onus.filter(o=>!ponCheck(o).sync);
+  if(badOnus.length>0){
+    const fixBox=document.createElement('div');
+    fixBox.style.cssText='background:#fff7ed;border:1.5px solid #fed7aa;border-radius:9px;padding:12px 16px';
+    fixBox.innerHTML=`<div style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#92400e;margin-bottom:7px">
+      ⚠ ${badOnus.length} cliente${badOnus.length!==1?'s':''} sin sincronía — soluciones posibles:</div>`;
+    badOnus.forEach(onu=>{
+      const r=ponCheck(onu);
+      const physPort=net.olt.ports.find(p=>p.id===r.physOltPortId);
+      const cto=net.ctos.find(c=>c.id===onu.ctoId);
+      const div=document.createElement('div');
+      div.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap';
+      div.innerHTML=`<span style="font-family:var(--mono);font-size:8.5px;color:#374151"><b>${onu.name}</b> en ${cto?.name}</span>`;
+      // Fix 1: change physical (move CTO to correct SP)
+      const physSp=physPort?net.splitters.find(s=>s.oltPortId===physPort.id):null;
+      const fix1=ponBtn(`🔧 Corrección física: mover ${cto?.name} al SP del Port ${physPort?.num}`,
+        '#dcfce7','#15803d',()=>{
+          // Find free port in the correct SP
+          if(!physSp) return;
+          const freePort=physSp.ports.find(p=>!p.ctoId);
+          if(!freePort){ alert('No hay puertos libres en ese SP.'); return; }
+          net.splitters.forEach(s=>s.ports.forEach(p=>{if(p.ctoId===cto.id)p.ctoId=null;}));
+          freePort.ctoId=cto.id; cto.spId=physSp.id; cto.spPort=freePort.num;
+          ponRender();
+        });
+      fix1.style.fontSize='7.5px'; fix1.style.padding='3px 8px';
+      // Fix 2: reassign logic (parche)
+      const fix2=ponBtn(`⚡ Parche lógico: reasignar a Port ${physPort?.num} (no corrige físico)`,
+        '#fef9c3','#92400e',()=>{
+          onu.oltPortId=r.physOltPortId;
+          ponRender();
+        });
+      fix2.style.fontSize='7.5px'; fix2.style.padding='3px 8px';
+      div.appendChild(fix1); div.appendChild(fix2);
+      fixBox.appendChild(div);
+    });
+    body.appendChild(fixBox);
+  }
+}
+
+// ── Helper UI components ──────────────────────────────────
+function ponCard(title,titleColor,bg,brd){
+  const d=document.createElement('div');
+  d.style.cssText=`background:${bg};border:1.5px solid ${brd};border-radius:9px;padding:10px 12px;flex-shrink:0`;
+  const t=document.createElement('div');
+  t.style.cssText=`font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;
+    text-transform:uppercase;color:${titleColor};margin-bottom:8px`;
+  t.textContent=title;
+  d.appendChild(t);
+  return d;
+}
+function ponBtn(text,bg,color,cb){
+  const b=document.createElement('button');
+  b.textContent=text;
+  b.style.cssText=`font-family:var(--mono);font-size:8.5px;font-weight:600;padding:5px 11px;
+    border-radius:5px;background:${bg};color:${color};border:none;cursor:pointer`;
+  b.onclick=cb; return b;
+}
+function ponIconBtn(icon,cb,bg='#f1f5f9',color='#374151'){
+  const b=document.createElement('button');
+  b.textContent=icon;
+  b.style.cssText=`font-size:10px;padding:3px 6px;border-radius:4px;background:${bg};
+    color:${color};border:1px solid #e5e7eb;cursor:pointer;margin-left:3px`;
+  b.onclick=e=>{ e.stopPropagation(); cb(); }; return b;
+}
+
+// ── Edit form (inline) ────────────────────────────────────
+function ponEditForm(onu, onDone){
+  const net=ponNet;
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap';
+
+  function field(label, el){
+    const d=document.createElement('div');
+    const l=document.createElement('div');
+    l.style.cssText='font-family:var(--mono);font-size:7.5px;color:#6b7280;margin-bottom:3px';
+    l.textContent=label;
+    d.appendChild(l); d.appendChild(el); return d;
+  }
+  function textInp(val){
+    const i=document.createElement('input'); i.value=val;
+    i.style.cssText='font-family:var(--mono);font-size:9.5px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;outline:none;width:180px';
+    i.onfocus=()=>i.style.borderColor='#6d28d9';
+    i.onblur=()=>i.style.borderColor='#d1d5db';
+    return i;
+  }
+  function selectEl(options, current){
+    const s=document.createElement('select');
+    s.style.cssText='font-family:var(--mono);font-size:9px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer';
+    options.forEach(([v,l])=>{ const o=document.createElement('option'); o.value=v; o.textContent=l; if(v===current)o.selected=true; s.appendChild(o); });
+    return s;
+  }
+
+  const nameI=textInp(onu.name);
+  const ctoOpts=net.ctos.map(c=>[c.id,c.name]);
+  const ctoS=selectEl(ctoOpts, onu.ctoId);
+  const portOpts=Array.from({length:8},(_,i)=>[''+( i+1),'Puerto '+(i+1)]);
+  const portS=selectEl(portOpts,''+onu.ctoPort);
+  const oltOpts=net.olt.ports.map(p=>[p.id,`Shelf${net.olt.shelf}/Slot${net.olt.slot}/Port ${p.num} — fibra ${p.fiberNum} (${ponFiberInfo(p.fiberNum).tubeC.name}/${ponFiberInfo(p.fiberNum).fiberC.name})`]);
+  const oltS=selectEl(oltOpts, onu.oltPortId);
+
+  // Preview
+  const preview=document.createElement('div');
+  preview.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280;padding:4px 8px;background:#f8fafc;border-radius:5px;border:1px solid #e5e7eb;flex:1;min-width:200px';
+  function updatePreview(){
+    const selCto=net.ctos.find(c=>c.id===ctoS.value);
+    const selSp=selCto?net.splitters.find(s=>s.id===selCto.spId):null;
+    const physPort=selSp?net.olt.ports.find(p=>p.id===selSp.oltPortId):null;
+    const logicPort=net.olt.ports.find(p=>p.id===oltS.value);
+    const ok=physPort&&logicPort&&physPort.id===logicPort.id;
+    preview.innerHTML=`<b>Vista previa:</b> ${nameI.value||'?'} → ${selCto?.name||'?'} → ${selSp?.name||'?'} → OLT P${physPort?.num||'?'}<br>
+      Asignado lógico: OLT P${logicPort?.num||'?'} → <b style="color:${ok?'#15803d':'#dc2626'}">${ok?'✔ SYNC':'✖ MISMATCH'}</b>`;
+  }
+  [ctoS,portS,oltS,nameI].forEach(el=>{ el.oninput=updatePreview; el.onchange=updatePreview; });
+  updatePreview();
+
+  const saveB=ponBtn('✔ Guardar','#6d28d9','white',()=>{
+    onu.name=nameI.value||onu.name;
+    // Remove from old CTO port
+    net.ctos.forEach(c=>c.ports.forEach(p=>{ if(p.onuId===onu.id) p.onuId=null; }));
+    onu.ctoId=ctoS.value;
+    onu.ctoPort=parseInt(portS.value);
+    onu.oltPortId=oltS.value;
+    // Assign to new CTO port
+    const newCto=net.ctos.find(c=>c.id===onu.ctoId);
+    if(newCto){ const np=newCto.ports.find(p=>p.num===onu.ctoPort); if(np) np.onuId=onu.id; }
+    onDone();
+  });
+  const cancelB=ponBtn('✕ Cancelar','#f1f5f9','#374151',onDone);
+
+  wrap.appendChild(field('Nombre cliente',nameI));
+  wrap.appendChild(field('CTO física',ctoS));
+  wrap.appendChild(field('Puerto CTO',portS));
+  wrap.appendChild(field('OLT asignado',oltS));
+  wrap.appendChild(field('',saveB));
+  wrap.appendChild(field('',cancelB));
+  wrap.appendChild(preview);
+  return wrap;
+}
+
+// ── Mutations ─────────────────────────────────────────────
+function ponDeleteOnu(id){
+  const net=ponNet;
+  net.ctos.forEach(c=>c.ports.forEach(p=>{ if(p.onuId===id) p.onuId=null; }));
+  net.onus=net.onus.filter(o=>o.id!==id);
+}
+function ponMoveOnu(onuId, toCtoId, toPortNum){
+  const net=ponNet;
+  const onu=net.onus.find(o=>o.id===onuId); if(!onu) return;
+  // Remove from current port
+  net.ctos.forEach(c=>c.ports.forEach(p=>{ if(p.onuId===onuId) p.onuId=null; }));
+  onu.ctoId=toCtoId;
+  // Find free port in target CTO
+  const toCto=net.ctos.find(c=>c.id===toCtoId); if(!toCto) return;
+  const freePort=toPortNum!=null
+    ? toCto.ports.find(p=>p.num===toPortNum&&!p.onuId)
+    : toCto.ports.find(p=>!p.onuId);
+  if(freePort){ freePort.onuId=onuId; onu.ctoPort=freePort.num; }
+  ponDragOnu=null; ponRender();
+}
+
+// ── Add dialogs ───────────────────────────────────────────
+function ponShowAddOnu(){
+  const name=prompt('Nombre del cliente:'); if(!name) return;
+  // Find first free port in any CTO
+  let placed=false;
+  for(const cto of ponNet.ctos){
+    const freeP=cto.ports.find(p=>!p.onuId);
+    if(freeP){
+      const sp=ponNet.splitters.find(s=>s.id===cto.spId);
+      const defOlt=sp?ponNet.olt.ports.find(p=>p.id===sp.oltPortId):ponNet.olt.ports[0];
+      ponAddONU(ponNet,name,cto.id,freeP.num,defOlt?.id||ponNet.olt.ports[0].id);
+      placed=true; break;
+    }
+  }
+  if(!placed) alert('Sin puertos libres. Agregá una CTO primero.');
+  ponEditId=ponNet.onus[ponNet.onus.length-1]?.id||null;
+  ponRender();
+}
+function ponShowAddCto(){
+  const name=prompt('Nombre de la CTO:','CTO '+( ponNet.ctos.length+1)); if(!name) return;
+  const id='cto'+Date.now();
+  ponNet.ctos.push({id,name,spId:null,spPort:null,
+    ports:Array.from({length:8},(_,i)=>({id:id+'p'+(i+1),num:i+1,onuId:null}))});
+  ponRender();
+}
+function ponShowAddSp(){
+  const name=prompt('Nombre del SP Primario:','SP Primario '+(ponNet.splitters.length+1)); if(!name) return;
+  const id='sp'+Date.now();
+  ponNet.splitters.push({id,name,oltPortId:null,
+    ports:Array.from({length:8},(_,i)=>({id:id+'p'+(i+1),num:i+1,ctoId:null}))});
+  ponRender();
+}
+function ponEditCto(ctoId){
+  const cto=ponNet.ctos.find(c=>c.id===ctoId); if(!cto) return;
+  const name=prompt('Nombre de la CTO:',cto.name); if(!name) return;
+  cto.name=name; ponRender();
+}
+
+function openPON(){
+  document.getElementById('pon-modal').style.display='block';
+  if(!ponNet) ponInit();
+  setTimeout(()=>ponRender(), 20);
+}
+function closePON(){
+  document.getElementById('pon-modal').style.display='none';
+}
 // ════════════════════════════════════════════════════════
 buildPanels();
 buildOnuCountUI();
@@ -1961,6 +2631,7 @@ setTimeout(fitZoom,80);
 // Wire fiber planner buttons (after DOM ready)
 document.getElementById('fp-close-btn').onclick=()=>closeFiberPlanner();
 document.getElementById('fp-add-cable').onclick=()=>addCable();
+document.getElementById('pon-close-btn').onclick=()=>closePON();
 </script>
 </body>
 </html>
