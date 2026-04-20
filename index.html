@@ -243,8 +243,8 @@ const STATE = {
     olt: 4.0,
     brOn: {a:true, b:true},
     indep: false,
-    r1a:70, r2a:70, r3a:70,
-    r1b:70, r2b:70, r3b:70,
+    r1a:70, r2a:70, r3a:50,
+    r1b:70, r2b:70, r3b:50,
     // fiber lengths
     len: {a:{hc1:50,c1c2:80,c2c3:100,c3c4:80}, b:{hc1:50,c1c2:80,c2c3:100,c3c4:80}},
     // extra drop attenuation per segment
@@ -1100,13 +1100,13 @@ function buildCfgPanel(tp){
         <div class="pct">Ratio SP 1×2 <span id="lbl-ratio-a" style="font-size:9px;color:var(--txt3);text-transform:none;letter-spacing:0;font-weight:400">${s.indep?'Rama A':'ambas ramas'}</span></div>
         <div class="pr"><span class="pl">CTO 1 pass %</span><input class="pi" type="number" id="r1a" value="${s.r1a}" step="5" min="50" max="90" oninput="S().r1a=parseFloat(this.value)||70;syncR(1);recalc()"></div>
         <div class="pr"><span class="pl">CTO 2 pass %</span><input class="pi" type="number" id="r2a" value="${s.r2a}" step="5" min="50" max="90" oninput="S().r2a=parseFloat(this.value)||70;syncR(2);recalc()"></div>
-        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3a" value="${s.r3a}" step="5" min="50" max="90" oninput="S().r3a=parseFloat(this.value)||70;syncR(3);recalc()"></div>
+        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3a" value="${s.r3a}" step="5" min="50" max="90" oninput="S().r3a=parseFloat(this.value)||50;syncR(3);recalc()"></div>
       </div>
       <div class="pc" id="pc-rb" style="display:${s.indep?'':'none'};min-width:185px">
         <div class="pct">Ratio SP 1×2 — Rama B</div>
         <div class="pr"><span class="pl">CTO 1 pass %</span><input class="pi" type="number" id="r1b" value="${s.r1b}" step="5" min="50" max="90" oninput="S().r1b=parseFloat(this.value)||70;recalc()"></div>
         <div class="pr"><span class="pl">CTO 2 pass %</span><input class="pi" type="number" id="r2b" value="${s.r2b}" step="5" min="50" max="90" oninput="S().r2b=parseFloat(this.value)||70;recalc()"></div>
-        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3b" value="${s.r3b}" step="5" min="50" max="90" oninput="S().r3b=parseFloat(this.value)||70;recalc()"></div>
+        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3b" value="${s.r3b}" step="5" min="50" max="90" oninput="S().r3b=parseFloat(this.value)||50;recalc()"></div>
       </div>
       <div class="pc" style="min-width:185px">
         <div class="pct">Fibra Rama A (m)</div>
