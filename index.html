@@ -24,27 +24,27 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
   box-shadow:0 1px 3px rgba(0,0,0,.06);gap:12px}
 .logo{display:flex;align-items:center;gap:9px;flex-shrink:0}
 .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#0066cc,#0044aa);
-  border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
-.logo-title{font-size:11px;font-weight:700;color:var(--txt)}
-.logo-sub{font-size:7.5px;color:var(--txt3);font-family:var(--mono);letter-spacing:.6px;text-transform:uppercase}
+  border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.logo-title{font-size:15px;font-weight:700;color:var(--txt)}
+.logo-sub{font-size:11px;color:var(--txt3);font-family:var(--mono);letter-spacing:.6px;text-transform:uppercase}
 
 /* Topology selector pills */
 .topo-sel{display:flex;gap:4px;background:var(--sur2);border:1px solid var(--brd);
   border-radius:8px;padding:3px}
-.tpill{padding:4px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono);
-  font-size:8.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;
+.tpill{padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--mono);
+  font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;
   color:var(--txt3);transition:all .15s;white-space:nowrap}
 .tpill.active{background:var(--acc);color:#fff;box-shadow:0 1px 3px rgba(0,102,204,.3)}
 .tpill:hover:not(.active){color:var(--txt);background:var(--brd2)}
 
 .hdr-kpis{display:flex;gap:16px}
 .kpi{text-align:center}
-.kpi-lbl{font-size:7px;text-transform:uppercase;letter-spacing:.8px;color:var(--txt3);font-family:var(--mono)}
-.kpi-val{font-size:12px;font-weight:700;font-family:var(--mono)}
+.kpi-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--txt3);font-family:var(--mono)}
+.kpi-val{font-size:15px;font-weight:700;font-family:var(--mono)}
 .kv-ok{color:var(--g)}.kv-wn{color:var(--y)}.kv-er{color:var(--r)}
 .hdr-btns{display:flex;gap:6px;flex-shrink:0}
-.hbtn{padding:4px 10px;border-radius:5px;border:1px solid var(--brd);cursor:pointer;
-  font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;transition:all .15s}
+.hbtn{padding:5px 12px;border-radius:5px;border:1px solid var(--brd);cursor:pointer;
+  font-family:var(--mono);font-size:12px;font-weight:600;text-transform:uppercase;transition:all .15s}
 .hbtn-s{background:var(--sur2);color:var(--txt2)}.hbtn-s:hover{background:var(--brd2)}
 
 /* WORKSPACE */
@@ -58,55 +58,55 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
 .zoom-bar{position:absolute;bottom:10px;right:14px;display:flex;align-items:center;gap:5px;
   background:var(--sur);border:1px solid var(--brd);border-radius:7px;padding:4px 9px;
   box-shadow:0 2px 8px rgba(0,0,0,.1);z-index:20}
-.zbtn{width:24px;height:24px;border-radius:4px;border:1px solid var(--brd);background:var(--sur2);
-  cursor:pointer;font-size:14px;font-weight:700;color:var(--txt2);
+.zbtn{width:26px;height:26px;border-radius:4px;border:1px solid var(--brd);background:var(--sur2);
+  cursor:pointer;font-size:17px;font-weight:700;color:var(--txt2);
   display:flex;align-items:center;justify-content:center;transition:all .12s;user-select:none}
 .zbtn:hover{background:var(--brd2);color:var(--txt)}
-.zoom-pct{font-family:var(--mono);font-size:9.5px;font-weight:600;color:var(--txt2);min-width:36px;text-align:center}
+.zoom-pct{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--txt2);min-width:38px;text-align:center}
 
 /* BOTTOM PANEL */
 .bot{background:var(--sur);border-top:2px solid var(--brd);flex-shrink:0;display:flex;flex-direction:column}
 .ptabs{display:flex;border-bottom:1px solid var(--brd);background:var(--sur2);overflow-x:auto}
-.ptab{padding:6px 11px;font-size:8.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+.ptab{padding:7px 13px;font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
   cursor:pointer;color:var(--txt3);border-bottom:2px solid transparent;margin-bottom:-1px;
   font-family:var(--mono);transition:all .15s;white-space:nowrap}
 .ptab.on{color:var(--acc);border-bottom-color:var(--acc);background:var(--sur)}
 .ptab:hover:not(.on){color:var(--txt)}
-.pbody{padding:8px 11px;display:none;overflow-x:auto;overflow-y:auto;
-  gap:8px;align-items:flex-start;max-height:220px}
+.pbody{padding:9px 12px;display:none;overflow-x:auto;overflow-y:auto;
+  gap:9px;align-items:flex-start;max-height:240px}
 .pbody.on{display:flex}
 .pc{background:var(--sur2);border:1px solid var(--brd2);border-radius:6px;
-  padding:8px 10px;flex-shrink:0;min-width:145px}
-.pct{font-size:7.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-  color:var(--acc);font-family:var(--mono);margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  padding:9px 11px;flex-shrink:0;min-width:150px}
+.pct{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:var(--acc);font-family:var(--mono);margin-bottom:7px;display:flex;align-items:center;gap:5px}
 .pct::after{content:'';flex:1;height:1px;background:var(--brd2)}
-.pr{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
+.pr{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}
 .pr:last-child{margin-bottom:0}
-.pl{font-size:8px;color:var(--txt2);font-family:var(--mono);white-space:nowrap}
-.pi{width:58px;background:var(--sur);border:1px solid var(--brd);color:var(--txt);
-  font-family:var(--mono);font-size:9px;padding:3px 5px;border-radius:4px;text-align:right;outline:none}
+.pl{font-size:11.5px;color:var(--txt2);font-family:var(--mono);white-space:nowrap}
+.pi{width:62px;background:var(--sur);border:1px solid var(--brd);color:var(--txt);
+  font-family:var(--mono);font-size:12px;padding:3px 5px;border-radius:4px;text-align:right;outline:none}
 .pi:focus{border-color:var(--acc)}
 .ps{background:var(--sur);border:1px solid var(--brd);color:var(--txt);
-  font-family:var(--mono);font-size:8px;padding:3px 5px;border-radius:4px;outline:none;cursor:pointer}
+  font-family:var(--mono);font-size:11px;padding:3px 5px;border-radius:4px;outline:none;cursor:pointer}
 .srow{display:flex;align-items:center;gap:5px;margin-bottom:3px}
-.srow label{font-size:8px;color:var(--txt2);font-family:var(--mono);width:110px;flex-shrink:0}
+.srow label{font-size:11.5px;color:var(--txt2);font-family:var(--mono);width:115px;flex-shrink:0}
 .srow input[type=range]{-webkit-appearance:none;height:3px;background:var(--brd);border-radius:2px;outline:none;width:85px}
-.srow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--acc);cursor:pointer}
-.sv{font-size:8px;font-family:var(--mono);color:var(--o);width:36px;text-align:right}
-.tog{width:28px;height:16px;border-radius:8px;border:1px solid var(--brd);cursor:pointer;
+.srow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--acc);cursor:pointer}
+.sv{font-size:11px;font-family:var(--mono);color:var(--o);width:38px;text-align:right}
+.tog{width:30px;height:17px;border-radius:9px;border:1px solid var(--brd);cursor:pointer;
   position:relative;transition:all .2s;flex-shrink:0}
 .tog.off{background:var(--sur)}.tog.on{background:var(--r);border-color:var(--r)}
-.tog::after{content:'';position:absolute;width:10px;height:10px;border-radius:50%;top:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
-.tog.off::after{left:2px;background:var(--brd)}.tog.on::after{left:14px;background:#fff}
-.log-inner{overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.85;max-height:180px}
+.tog::after{content:'';position:absolute;width:11px;height:11px;border-radius:50%;top:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tog.off::after{left:2px;background:var(--brd)}.tog.on::after{left:15px;background:#fff}
+.log-inner{overflow-y:auto;font-family:var(--mono);font-size:13px;line-height:1.85;max-height:180px}
 .log-inner::-webkit-scrollbar{width:3px}
 .log-inner::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
 .lts{color:var(--txt3)}.lok{color:var(--g)}.lwn{color:var(--y)}.ler{color:var(--r)}.linf{color:var(--acc)}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
-.ncb{width:24px;height:20px;border-radius:3px;border:1px solid var(--brd);cursor:pointer;
-  font-family:var(--mono);font-size:8.5px;font-weight:600;background:var(--sur2);
+.ncb{width:26px;height:22px;border-radius:3px;border:1px solid var(--brd);cursor:pointer;
+  font-family:var(--mono);font-size:12px;font-weight:600;background:var(--sur2);
   color:var(--txt2);display:inline-flex;align-items:center;justify-content:center;transition:all .15s;margin-right:2px}
 .ncb.sel{background:var(--acc);color:#fff;border-color:var(--acc)}
 .ncb:hover:not(.sel){background:var(--brd2)}
@@ -154,27 +154,27 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#6d28d9,#4c1d95);padding:13px 20px;display:flex;align-items:center;justify-content:space-between">
       <div>
-        <div style="font-family:var(--sans);font-size:13px;font-weight:700;color:white">🔬 Planificador de Fibras Ópticas</div>
-        <div style="font-family:var(--mono);font-size:7.5px;color:rgba(255,255,255,.65);margin-top:2px">Asignación de tubos · Código de colores · Fibras muertas · Cable padre</div>
+        <div style="font-family:var(--sans);font-size:15px;font-weight:700;color:white">🔬 Planificador de Fibras Ópticas</div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:rgba(255,255,255,.65);margin-top:2px">Asignación de tubos · Código de colores · Fibras muertas · Cable padre</div>
       </div>
-      <button id="fp-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600">✕ Cerrar</button>
+      <button id="fp-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600">✕ Cerrar</button>
     </div>
 
     <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
 
       <!-- Color reference -->
       <div style="background:white;border:1px solid #ddd6fe;border-radius:8px;padding:10px 14px">
-        <div style="font-size:7.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6d28d9;font-family:var(--mono);margin-bottom:8px">Código de colores — tubos y fibras (secuencia de 8)</div>
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6d28d9;font-family:var(--mono);margin-bottom:8px">Código de colores — tubos y fibras (secuencia de 8)</div>
         <div id="color-legend" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-        <div style="margin-top:8px;font-size:7.5px;color:#6b7280;font-family:var(--mono)">
+        <div style="margin-top:8px;font-size:9.5px;color:#6b7280;font-family:var(--mono)">
           Tubo 1 = Verde · Tubo 2 = Rojo · Tubo 3 = Azul ... · Fibra 1 de cada tubo = Verde · Fibra 2 = Rojo ...
         </div>
       </div>
 
       <!-- Add cable button -->
       <div style="display:flex;align-items:center;gap:10px">
-        <button id="fp-add-cable" style="background:#6d28d9;color:white;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-family:var(--mono);font-size:9.5px;font-weight:700">+ Nuevo cable</button>
-        <span style="font-size:8px;color:#6b7280;font-family:var(--mono)">Cada cable puede representar un cable de distribución o un subconjunto de fibras de un cable mayor.</span>
+        <button id="fp-add-cable" style="background:#6d28d9;color:white;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-family:var(--mono);font-size:11.5px;font-weight:700">+ Nuevo cable</button>
+        <span style="font-size:10px;color:#6b7280;font-family:var(--mono)">Cada cable puede representar un cable de distribución o un subconjunto de fibras de un cable mayor.</span>
       </div>
 
       <!-- Cable cards container -->
@@ -192,10 +192,10 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#0e7490,#0c4a6e);padding:13px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0">
       <div>
-        <div style="font-family:var(--sans);font-size:13px;font-weight:700;color:white">🔁 Trazabilidad PON — GPON 2× SP 1×8</div>
-        <div style="font-family:var(--mono);font-size:7.5px;color:rgba(255,255,255,.65);margin-top:2px">OLT shelf/slot/port → SP Primario → CTO SP Secundario → ONU · Detección de inconsistencias lógico/físicas</div>
+        <div style="font-family:var(--sans);font-size:15px;font-weight:700;color:white">🔁 Trazabilidad PON — GPON 2× SP 1×8</div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:rgba(255,255,255,.65);margin-top:2px">OLT shelf/slot/port → SP Primario → CTO SP Secundario → ONU · Detección de inconsistencias lógico/físicas</div>
       </div>
-      <button id="pon-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600">✕ Cerrar</button>
+      <button id="pon-close-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600">✕ Cerrar</button>
     </div>
 
     <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px" id="pon-body">
@@ -216,8 +216,8 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px
       <div class="zbtn" onclick="adjustZoom(-0.15)">−</div>
       <div class="zoom-pct" id="zoom-pct">100%</div>
       <div class="zbtn" onclick="adjustZoom(+0.15)">+</div>
-      <div class="zbtn" onclick="setZoom(1)" style="font-size:8px;width:30px">1:1</div>
-      <div class="zbtn" onclick="fitZoom()" style="font-size:11px;width:26px">⊡</div>
+      <div class="zbtn" onclick="setZoom(1)" style="font-size:10px;width:30px">1:1</div>
+      <div class="zbtn" onclick="fitZoom()" style="font-size:13px;width:26px">⊡</div>
     </div>
   </div>
 
@@ -1054,12 +1054,12 @@ function buildPanels(){
     <div id="tab-onus" class="pbody">
       <div class="pc" style="min-width:200px">
         <div class="pct">Preset atenuación ONU</div>
-        <p style="font-size:7.5px;color:var(--txt3);font-family:var(--mono);margin-bottom:7px">
+        <p style="font-size:9.5px;color:var(--txt3);font-family:var(--mono);margin-bottom:7px">
           Atenuación interna de cada ONU (conector + equipo).<br>Se suma al drop de bajada.
         </p>
         <div class="pr"><span class="pl">Valor global (dB)</span>
           <input class="pi" type="number" id="onu-att-preset" value="1.0" step="0.5" min="0" max="10"></div>
-        <button class="hbtn hbtn-s" style="margin-top:6px;width:100%;font-size:8px" onclick="applyPreset()">Aplicar a todas</button>
+        <button class="hbtn hbtn-s" style="margin-top:6px;width:100%;font-size:10px" onclick="applyPreset()">Aplicar a todas</button>
       </div>
       <div id="onu-att-tables" style="display:flex;gap:8px;overflow-x:auto"></div>
     </div>
@@ -1069,7 +1069,7 @@ function buildPanels(){
         <div class="log-inner" id="log-area"></div>
       </div>
       <div style="padding-top:4px">
-        <button class="hbtn hbtn-s" onclick="clearLog()" style="font-size:8px">🗑 Limpiar</button>
+        <button class="hbtn hbtn-s" onclick="clearLog()" style="font-size:10px">🗑 Limpiar</button>
       </div>
     </div>
   `;
@@ -1097,7 +1097,7 @@ function buildCfgPanel(tp){
           <button class="tog ${s.indep?'on':'off'}" id="tog-ind" onclick="toggleIndep(this)"></button></div>
       </div>
       <div class="pc" style="min-width:185px">
-        <div class="pct">Ratio SP 1×2 <span id="lbl-ratio-a" style="font-size:7px;color:var(--txt3);text-transform:none;letter-spacing:0;font-weight:400">${s.indep?'Rama A':'ambas ramas'}</span></div>
+        <div class="pct">Ratio SP 1×2 <span id="lbl-ratio-a" style="font-size:9px;color:var(--txt3);text-transform:none;letter-spacing:0;font-weight:400">${s.indep?'Rama A':'ambas ramas'}</span></div>
         <div class="pr"><span class="pl">CTO 1 pass %</span><input class="pi" type="number" id="r1a" value="${s.r1a}" step="5" min="50" max="90" oninput="S().r1a=parseFloat(this.value)||70;syncR(1);recalc()"></div>
         <div class="pr"><span class="pl">CTO 2 pass %</span><input class="pi" type="number" id="r2a" value="${s.r2a}" step="5" min="50" max="90" oninput="S().r2a=parseFloat(this.value)||70;syncR(2);recalc()"></div>
         <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3a" value="${s.r3a}" step="5" min="50" max="90" oninput="S().r3a=parseFloat(this.value)||70;syncR(3);recalc()"></div>
@@ -1178,11 +1178,11 @@ function buildViewPanel(tp){
     ${showCtoToggles?`
     <div class="pc" style="min-width:200px">
       <div class="pct">CTOs activas</div>
-      <p style="font-size:7.5px;color:var(--txt3);font-family:var(--mono);margin-bottom:7px">Desactivá las CTOs no instaladas</p>
+      <p style="font-size:9.5px;color:var(--txt3);font-family:var(--mono);margin-bottom:7px">Desactivá las CTOs no instaladas</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 14px">
         ${s.ctoKeys.map(ck=>`
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-          <span style="font-size:8.5px;font-family:var(--mono);color:var(--txt2)">${ck.toUpperCase()}</span>
+          <span style="font-size:10.5px;font-family:var(--mono);color:var(--txt2)">${ck.toUpperCase()}</span>
           <button class="tog ${(s.ctoOn&&s.ctoOn[ck])?'on':'off'}" id="tog-cto-${ck}"
             onclick="toggleCTO('${ck}',this)"></button>
         </div>`).join('')}
@@ -1317,7 +1317,7 @@ function buildFaultsPanel(tp){
            ['cut-a-hc1','Hub→A1'],['cut-a-c1c2','A1→A2'],['cut-a-c2c3','A2→A3'],['cut-a-c3c4','A3→A4'],
            ['cut-b-hc1','Hub→B1'],['cut-b-c1c2','B1→B2'],['cut-b-c2c3','B2→B3'],['cut-b-c3c4','B3→B4']].map(([k,lbl])=>
           `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-            <span style="font-size:8px;font-family:var(--mono);color:var(--txt2)">${lbl}</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--txt2)">${lbl}</span>
             <button class="tog ${s.F[k]?'on':'off'}" id="t-${k}" onclick="toggleCut('${k}',this)"></button></div>`).join('')}
       </div>
     </div>`;
@@ -1334,7 +1334,7 @@ function buildFaultsPanel(tp){
         ${[['cut-olt','Troncal OLT'],
            ...([1,2,3,4,5,6,7,8].map(i=>['cut-c'+i,`→ C${i}`]))].map(([k,lbl])=>
           `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-            <span style="font-size:8px;font-family:var(--mono);color:var(--txt2)">${lbl}</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--txt2)">${lbl}</span>
             <button class="tog ${s.F[k]?'on':'off'}" id="t-${k}" onclick="toggleCut('${k}',this)"></button></div>`).join('')}
       </div>
     </div>`;
@@ -1364,7 +1364,7 @@ function buildOnuCountUI(){
     const row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:3px;margin-bottom:3px';
     const lbl=document.createElement('span');
-    lbl.style.cssText='font-size:8px;font-family:var(--mono);color:var(--txt2);width:48px;flex-shrink:0';
+    lbl.style.cssText='font-size:10px;font-family:var(--mono);color:var(--txt2);width:48px;flex-shrink:0';
     lbl.textContent='CTO '+k.toUpperCase();
     row.appendChild(lbl);
     [0,1,2,4,8].forEach(n=>{
@@ -1388,14 +1388,14 @@ function buildAttTables(){
     const card=document.createElement('div');
     card.className='pc'; card.style.minWidth='175px';
     let html=`<div class="pct">CTO ${ck.toUpperCase()}</div>
-      <p style="font-size:7px;color:var(--txt3);font-family:var(--mono);margin-bottom:5px">Atenuación interna ONU (dB)</p>`;
+      <p style="font-size:9px;color:var(--txt3);font-family:var(--mono);margin-bottom:5px">Atenuación interna ONU (dB)</p>`;
     for(let i=1;i<=n;i++){
       const pk='p'+i;
       html+=`<div class="pr"><span class="pl" style="width:20px">P${i}</span>
         <input class="pi" id="onu-att-${ck}-${pk}" type="number"
-          value="${(s.onuAtt[ck][pk]||0).toFixed(1)}" step="0.1" min="0" max="15" style="width:55px;font-size:8.5px"
+          value="${(s.onuAtt[ck][pk]||0).toFixed(1)}" step="0.1" min="0" max="15" style="width:55px;font-size:10.5px"
           oninput="S().onuAtt['${ck}']['${pk}']=parseFloat(this.value)||0;recalc()">
-        <span id="onu-st-${ck}-${pk}" style="font-size:7.5px;font-family:var(--mono);color:var(--txt3);width:28px;text-align:right">···</span>
+        <span id="onu-st-${ck}-${pk}" style="font-size:9.5px;font-family:var(--mono);color:var(--txt3);width:28px;text-align:right">···</span>
       </div>`;
     }
     card.innerHTML=html;
@@ -1594,14 +1594,14 @@ function inp(attrs={}){
 }
 function sel(options, current, style=''){
   const e=document.createElement('select');
-  e.style.cssText='font-family:var(--mono);font-size:9px;padding:4px 6px;border:1px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer;'+style;
+  e.style.cssText='font-family:var(--mono);font-size:11px;padding:4px 6px;border:1px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer;'+style;
   options.forEach(([v,l])=>{ const o=document.createElement('option'); o.value=v; o.textContent=l; if(v==current) o.selected=true; e.appendChild(o); });
   return e;
 }
 function lbl(text, style=''){
   const s=document.createElement('span');
   s.textContent=text;
-  s.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280;white-space:nowrap;'+style;
+  s.style.cssText='font-family:var(--mono);font-size:10px;color:#6b7280;white-space:nowrap;'+style;
   return s;
 }
 function row(...children){
@@ -1619,13 +1619,13 @@ function colorDot(hex,title='',size=10){
 function badge(text,bg,color){
   const d=document.createElement('span');
   d.textContent=text;
-  d.style.cssText=`font-family:var(--mono);font-size:8px;font-weight:700;padding:2px 8px;border-radius:12px;background:${bg};color:${color};flex-shrink:0`;
+  d.style.cssText=`font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:${bg};color:${color};flex-shrink:0`;
   return d;
 }
 function btn(text,bg,color,border,cb){
   const b=document.createElement('button');
   b.textContent=text;
-  b.style.cssText=`font-family:var(--mono);font-size:8.5px;font-weight:600;padding:4px 10px;border-radius:5px;background:${bg};color:${color};border:1px solid ${border};cursor:pointer`;
+  b.style.cssText=`font-family:var(--mono);font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:5px;background:${bg};color:${color};border:1px solid ${border};cursor:pointer`;
   b.onclick=cb;
   return b;
 }
@@ -1637,7 +1637,7 @@ function renderCables(){
   if(cables.length===0){
     const p=document.createElement('p');
     p.textContent='Sin cables. Hacé clic en "+ Nuevo cable" para empezar.';
-    p.style.cssText='font-family:var(--mono);font-size:9px;color:#9ca3af;text-align:center;padding:20px';
+    p.style.cssText='font-family:var(--mono);font-size:11px;color:#9ca3af;text-align:center;padding:20px';
     wrap.appendChild(p);
     return;
   }
@@ -1658,7 +1658,7 @@ function renderCables(){
     hdr.style.cssText='background:#4c1d95;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
 
     // Cable name
-    const nameInp=inp({value:cable.name,style:'width:160px;background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:white;font-size:11px;font-weight:600'});
+    const nameInp=inp({value:cable.name,style:'width:160px;background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:white;font-size:13px;font-weight:600'});
     nameInp.oninput=()=>{ cable.name=nameInp.value; };
     hdr.appendChild(nameInp);
 
@@ -1677,12 +1677,12 @@ function renderCables(){
 
     // Used/total indicator
     const usedBadge=document.createElement('span');
-    usedBadge.style.cssText=`font-family:var(--mono);font-size:9px;font-weight:600;color:${over?'#fca5a5':free===0?'#86efac':'rgba(255,255,255,.8)'}`;
+    usedBadge.style.cssText=`font-family:var(--mono);font-size:11px;font-weight:600;color:${over?'#fca5a5':free===0?'#86efac':'rgba(255,255,255,.8)'}`;
     usedBadge.textContent=`${used}/${cable.total}F ${over?'⚠ EXCEDE':free>0?`· ${free} libres`:'· completo'}`;
     hdr.appendChild(usedBadge);
 
     // Delete cable
-    hdr.appendChild(Object.assign(btn('✕ Eliminar cable','rgba(239,68,68,.2)','#fca5a5','rgba(239,68,68,.4)',()=>delCable(cable.id)),{style:'margin-left:auto;font-family:var(--mono);font-size:8px;padding:3px 9px;border-radius:4px;cursor:pointer;background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.4)'}));
+    hdr.appendChild(Object.assign(btn('✕ Eliminar cable','rgba(239,68,68,.2)','#fca5a5','rgba(239,68,68,.4)',()=>delCable(cable.id)),{style:'margin-left:auto;font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.4)'}));
     card.appendChild(hdr);
 
     // ── Parent cable section ──
@@ -1693,7 +1693,7 @@ function renderCables(){
     parentChk.type='checkbox'; parentChk.checked=cable.hasParent;
     parentChk.style.cssText='cursor:pointer;width:14px;height:14px;accent-color:#6d28d9';
     const parentLbl=document.createElement('label');
-    parentLbl.style.cssText='display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--mono);font-size:9px;color:#4c1d95;font-weight:600';
+    parentLbl.style.cssText='display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--mono);font-size:11px;color:#4c1d95;font-weight:600';
     parentLbl.appendChild(parentChk);
     parentLbl.appendChild(document.createTextNode('Viene de cable padre'));
     parentChk.onchange=()=>{ cable.hasParent=parentChk.checked; renderCables(); };
@@ -1713,7 +1713,7 @@ function renderCables(){
       const pInfo=fiberInfo(cable.parentStart, cable.fpt);
       const pInfoEnd=fiberInfo(cable.parentStart+cable.total-1, cable.fpt);
       const pInfoDiv=document.createElement('span');
-      pInfoDiv.style.cssText='font-family:var(--mono);font-size:8.5px;color:#6d28d9;background:#ede9fe;padding:3px 8px;border-radius:4px';
+      pInfoDiv.style.cssText='font-family:var(--mono);font-size:10.5px;color:#6d28d9;background:#ede9fe;padding:3px 8px;border-radius:4px';
       pInfoDiv.textContent=`Pelos ${cable.parentStart}–${cable.parentStart+cable.total-1} del cable padre`;
 
       parentBar.appendChild(lbl('Nombre:'));
@@ -1734,7 +1734,7 @@ function renderCables(){
     const mapDiv=document.createElement('div');
     mapDiv.style.cssText='padding:12px 14px;border-right:1px solid #e5e7eb;min-width:220px;max-width:320px;background:#fafafa';
     const mapTitle=document.createElement('div');
-    mapTitle.style.cssText='font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:8px';
+    mapTitle.style.cssText='font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:8px';
     mapTitle.textContent='Mapa de fibras';
     mapDiv.appendChild(mapTitle);
 
@@ -1749,7 +1749,7 @@ function renderCables(){
         const tubeNum=Math.ceil(f/cable.fpt);
         const tc=fc(tubeNum);
         const tLbl=document.createElement('div');
-        tLbl.style.cssText=`width:32px;font-family:var(--mono);font-size:7.5px;font-weight:700;color:${tc.hex};flex-shrink:0;text-align:right;padding-right:5px`;
+        tLbl.style.cssText=`width:32px;font-family:var(--mono);font-size:9.5px;font-weight:700;color:${tc.hex};flex-shrink:0;text-align:right;padding-right:5px`;
         tLbl.textContent=`T${tubeNum}`;
         currentRow.appendChild(tLbl);
         grid.appendChild(currentRow);
@@ -1796,7 +1796,7 @@ function renderCables(){
       tl.style.cssText='display:flex;align-items:center;gap:3px;background:#f3f4f6;padding:2px 5px;border-radius:3px';
       tl.appendChild(colorDot(tc.hex,tc.name,8));
       const tspan=document.createElement('span');
-      tspan.style.cssText='font-family:var(--mono);font-size:7px;color:#374151';
+      tspan.style.cssText='font-family:var(--mono);font-size:9px;color:#374151';
       tspan.textContent=`T${t}`;
       tl.appendChild(tspan);
       tubeLegDiv.appendChild(tl);
@@ -1809,14 +1809,14 @@ function renderCables(){
     segsDiv.style.cssText='flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:8px';
 
     const segsTitle=document.createElement('div');
-    segsTitle.style.cssText='font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:4px';
+    segsTitle.style.cssText='font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#6d28d9;margin-bottom:4px';
     segsTitle.textContent='Asignación de fibras — en orden desde la fibra 1';
     segsDiv.appendChild(segsTitle);
 
     if(cable.segs.length===0){
       const empty=document.createElement('p');
       empty.textContent='Sin segmentos todavía. Usá los botones de abajo para agregar.';
-      empty.style.cssText='font-family:var(--mono);font-size:8.5px;color:#9ca3af;padding:10px 0';
+      empty.style.cssText='font-family:var(--mono);font-size:10.5px;color:#9ca3af;padding:10px 0';
       segsDiv.appendChild(empty);
     }
 
@@ -1833,7 +1833,7 @@ function renderCables(){
       const moveDiv=document.createElement('div');
       moveDiv.style.cssText='display:flex;flex-direction:column;gap:1px';
       const upB=document.createElement('button');
-      upB.textContent='▲'; upB.style.cssText='background:none;border:1px solid #e5e7eb;border-radius:3px;padding:1px 4px;cursor:pointer;font-size:7px;color:#6b7280';
+      upB.textContent='▲'; upB.style.cssText='background:none;border:1px solid #e5e7eb;border-radius:3px;padding:1px 4px;cursor:pointer;font-size:9px;color:#6b7280';
       upB.onclick=()=>moveSeg(cable.id,si,-1);
       const dnB=document.createElement('button');
       dnB.textContent='▼'; dnB.style.cssText=upB.style.cssText;
@@ -1858,12 +1858,12 @@ function renderCables(){
       rangeDiv.appendChild(colorDot(fi_s.tubeC.hex,`Tubo ${fi_s.tube}: ${fi_s.tubeC.name}`));
       rangeDiv.appendChild(colorDot(fi_s.fiberC.hex,`Fibra ${fi_s.fin}: ${fi_s.fiberC.name}`));
       const rangeSpan=document.createElement('span');
-      rangeSpan.style.cssText='font-family:var(--mono);font-size:9px;font-weight:600;color:#374151';
+      rangeSpan.style.cssText='font-family:var(--mono);font-size:11px;font-weight:600;color:#374151';
       rangeSpan.textContent=`#${seg.start}`;
       if(seg.n>1){
         rangeDiv.appendChild(document.createTextNode(' '));
         const arrow=document.createElement('span');
-        arrow.textContent='→'; arrow.style.cssText='color:#9ca3af;font-size:9px';
+        arrow.textContent='→'; arrow.style.cssText='color:#9ca3af;font-size:11px';
         rangeDiv.appendChild(arrow);
         rangeDiv.appendChild(colorDot(fi_e.tubeC.hex,`Tubo ${fi_e.tube}`));
         rangeDiv.appendChild(colorDot(fi_e.fiberC.hex,`Fibra ${fi_e.fin}`));
@@ -1881,13 +1881,13 @@ function renderCables(){
         const parentRef=document.createElement('div');
         parentRef.style.cssText='display:flex;align-items:center;gap:3px;background:#ede9fe;padding:3px 8px;border-radius:5px';
         const pLabel=document.createElement('span');
-        pLabel.style.cssText='font-family:var(--mono);font-size:7.5px;color:#6d28d9;font-weight:600';
+        pLabel.style.cssText='font-family:var(--mono);font-size:9.5px;color:#6d28d9;font-weight:600';
         pLabel.textContent=`Padre: `;
         parentRef.appendChild(pLabel);
         parentRef.appendChild(colorDot(pfi_s.tubeC.hex,pfi_s.tubeC.name));
         parentRef.appendChild(colorDot(pfi_s.fiberC.hex,pfi_s.fiberC.name));
         const pSpan=document.createElement('span');
-        pSpan.style.cssText='font-family:var(--mono);font-size:9px;font-weight:600;color:#4c1d95';
+        pSpan.style.cssText='font-family:var(--mono);font-size:11px;font-weight:600;color:#4c1d95';
         pSpan.textContent=`#${ps}`;
         if(seg.n>1){
           const arr=document.createElement('span'); arr.textContent='→'; arr.style.cssText='color:#9ca3af';
@@ -1913,7 +1913,7 @@ function renderCables(){
 
       if(seg.over){
         const warn=document.createElement('span');
-        warn.style.cssText='font-family:var(--mono);font-size:7.5px;color:#dc2626;font-weight:600';
+        warn.style.cssText='font-family:var(--mono);font-size:9.5px;color:#dc2626;font-weight:600';
         warn.textContent=`⚠ Excede cable (hasta fibra ${cable.total})`;
         segRow.appendChild(warn);
       }
@@ -1930,7 +1930,7 @@ function renderCables(){
     addRow.appendChild(btn('+ Fibras muertas','#f3f4f6','#374151','#d1d5db',()=>addSeg(cable.id,'fm')));
     if(free>0&&!over){
       const freeSpan=document.createElement('span');
-      freeSpan.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280';
+      freeSpan.style.cssText='font-family:var(--mono);font-size:10px;color:#6b7280';
       freeSpan.textContent=`${free} fibra${free!==1?'s':''} sin asignar`;
       addRow.appendChild(freeSpan);
     }
@@ -1950,7 +1950,7 @@ function buildColorLegend(){
     d.style.cssText='display:flex;align-items:center;gap:5px;background:white;border:1px solid #e5e7eb;border-radius:6px;padding:5px 10px';
     d.appendChild(colorDot(c.hex,c.name,14));
     const info=document.createElement('div');
-    info.innerHTML=`<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:#1f2937">${c.name}</div><div style="font-family:var(--mono);font-size:7px;color:#6b7280">Posición ${i+1}</div>`;
+    info.innerHTML=`<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#1f2937">${c.name}</div><div style="font-family:var(--mono);font-size:9px;color:#6b7280">Posición ${i+1}</div>`;
     d.appendChild(info);
     wrap.appendChild(d);
   });
@@ -2015,7 +2015,14 @@ function ponMakeNet(){
 
 function ponAddONU(net, name, ctoId, ctoPortNum, oltPortId){
   const id='onu'+(++net._seq);
-  net.onus.push({id, name, ctoId, ctoPort:ctoPortNum, oltPortId});
+  const altaOltP = oltPortId ? net.olt.ports.find(p=>p.id===oltPortId) : null;
+  const onu={id, name, ctoId, ctoPort:ctoPortNum, oltPortId,
+    origCtoId:ctoId, origCtoPort:ctoPortNum, origOltPortId:oltPortId,
+    origCableName: altaOltP?.cableName || '',
+    origCableHair: altaOltP?.cableHair ?? null,
+    origFiberNum:  altaOltP?.fiberNum  ?? null,
+  };
+  net.onus.push(onu);
   const cto=net.ctos.find(c=>c.id===ctoId);
   if(cto){ const p=cto.ports.find(p=>p.num===ctoPortNum); if(p) p.onuId=id; }
   return id;
@@ -2028,52 +2035,25 @@ function ponLinkOltSp(net, oltPortId, spId){
 function ponLinkSpCto(net, spId, spPortNum, ctoId){
   const sp=net.splitters.find(s=>s.id===spId); if(!sp) return;
   const p=sp.ports.find(p=>p.num===spPortNum); if(p) p.ctoId=ctoId;
-  const cto=net.ctos.find(c=>c.id===ctoId); if(cto){ cto.spId=spId; cto.spPort=spPortNum; }
+  const cto=net.ctos.find(c=>c.id===ctoId);
+  if(cto){
+    cto.spId=spId; cto.spPort=spPortNum;
+    // Snapshot the OLT port at the moment of original connection — used for client alta
+    if(!cto.origOltPortId){
+      const origOlt=net.olt.ports.find(p=>p.id===sp.oltPortId);
+      if(origOlt) cto.origOltPortId=origOlt.id;
+    }
+  }
 }
 
 function ponInit(){
   ponNet=ponMakeNet();
   const net=ponNet;
-
-  // ── OLT ejemplo ──
-  net.olt.name  = 'BA-BVS18-GPON';
-  net.olt.frame = 0;
-  net.olt.shelf = 1;
-  net.olt.slot  = 0;
-
-  // Puerto 0/1/0/5  → Cable BVST6 · Pelo 53 → SP Primario 1
+  net.olt.name='BA-BVS18-GPON'; net.olt.frame=0; net.olt.shelf=1; net.olt.slot=0;
   const p5=net.olt.ports.find(p=>p.num===5);
   if(p5){ p5.cableName='BVST6'; p5.cableHair=53; p5.fiberNum=ponHairToColorIdx(53); }
-
-  // Puerto 0/1/0/6  → Cable BVST6 · Pelo 54 → SP Primario 2
   const p6=net.olt.ports.find(p=>p.num===6);
   if(p6){ p6.cableName='BVST6'; p6.cableHair=54; p6.fiberNum=ponHairToColorIdx(54); }
-
-  // ── SP Primarios ──
-  const sp1={id:'sp1',name:'SP Primario 1',oltPortId:null,
-    ports:Array.from({length:8},(_,i)=>({id:'s1p'+(i+1),num:i+1,ctoId:null}))};
-  const sp2={id:'sp2',name:'SP Primario 2',oltPortId:null,
-    ports:Array.from({length:8},(_,i)=>({id:'s2p'+(i+1),num:i+1,ctoId:null}))};
-  net.splitters.push(sp1,sp2);
-
-  if(p5) ponLinkOltSp(net,p5.id,'sp1');
-  if(p6) ponLinkOltSp(net,p6.id,'sp2');
-
-  // ── CTOs — 8 en SP1, 8 en SP2 ──
-  for(let i=1;i<=8;i++){
-    const id=`cto1_${i}`;
-    net.ctos.push({id, name:`CTO-${500+i}`,
-      spId:'sp1', spPort:i,
-      ports:Array.from({length:8},(_,j)=>({id:`${id}p${j+1}`,num:j+1,onuId:null}))});
-    ponLinkSpCto(net,'sp1',i,id);
-  }
-  for(let i=1;i<=8;i++){
-    const id=`cto2_${i}`;
-    net.ctos.push({id, name:`CTO-${508+i}`,
-      spId:'sp2', spPort:i,
-      ports:Array.from({length:8},(_,j)=>({id:`${id}p${j+1}`,num:j+1,onuId:null}))});
-    ponLinkSpCto(net,'sp2',i,id);
-  }
 }
 
 // Pelo number → color index (8-color cycle)
@@ -2094,6 +2074,28 @@ function ponPortActive(net, portId){
   return net.onus.some(o=>o.oltPortId===portId && ponCheck(o).sync);
 }
 
+// ── Get cable/pelo info for a CTO ────────────────────────
+// Returns the cable name + pelo from the OLT port that feeds the CTO's SP
+function ponCtoCableInfo(net, ctoId){
+  const cto=net.ctos.find(c=>c.id===ctoId); if(!cto) return null;
+  const sp=net.splitters.find(s=>s.id===cto.spId); if(!sp) return null;
+  const oltPort=net.olt.ports.find(p=>p.id===sp.oltPortId); if(!oltPort) return null;
+  if(!oltPort.cableName&&oltPort.cableHair==null) return null;
+  return {
+    cable: oltPort.cableName||'',
+    hair:  oltPort.cableHair,
+    fiberNum: oltPort.fiberNum,
+    portLabel: `${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${oltPort.num}`,
+  };
+}
+
+// ── Format cable info as short label ─────────────────────
+function ponCableLabel(info){
+  if(!info) return '—';
+  const hairPart=info.hair!=null?` · P${info.hair}`:'';
+  return `${info.cable}${hairPart}`;
+}
+
 // ── Check: does ONU sync? ─────────────────────────────────
 // Returns {sync, status:'ok'|'patched'|'mismatch', physOltPortId, logicOltPortId, reason}
 // ok      → físico == lógico y no hay historial de parche
@@ -2106,12 +2108,14 @@ function ponCheck(onu){
   const cto=net.ctos.find(c=>c.id===onu.ctoId);
   if(!cto) return {sync:false,status:'mismatch',reason:'CTO no encontrada'};
   const sp=net.splitters.find(s=>s.id===cto.spId);
-  if(!sp) return {sync:false,status:'mismatch',reason:'CTO sin SP Primario asignado'};
+  if(!sp||!sp.oltPortId) return {sync:false,status:'mismatch',physOltPortId:null,logicOltPortId:onu.oltPortId,reason:'CTO sin SP Primario asignado'};
   const physOltPortId=sp.oltPortId;
   const logicOltPortId=onu.oltPortId;
 
+  if(!logicOltPortId)
+    return {sync:false,status:'mismatch',physOltPortId,logicOltPortId,reason:'Sin asignación OLT'};
+
   if(physOltPortId===logicOltPortId){
-    // Sincroniza — pero ¿fue mediante un parche lógico?
     if(onu.patched)
       return {sync:true,status:'patched',physOltPortId,logicOltPortId,
         reason:'Asignación lógica fue cambiada para sincronizar — revisar toma física'};
@@ -2148,174 +2152,237 @@ function ponRender(){
 
   const net=ponNet;
 
-  // ══ TOP BAR: OLT config + splitter setup + add buttons ══
+  // ══ GUIDED WORKFLOW — step by step top bar ══
   const topBar=document.createElement('div');
-  topBar.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start';
+  topBar.style.cssText='display:flex;flex-direction:column;gap:8px';
 
-  // OLT info card
-  const oltCard=ponCard(`${net.olt.name}  ·  Puertos PON`,'#0c4a6e','#e0f2fe','#0369a1');
-  oltCard.style.minWidth='240px';
-  const oltGrid=document.createElement('div');
-  oltGrid.style.cssText='display:flex;flex-direction:column;gap:3px';
-  net.olt.ports.forEach(p=>{
-    const sp=p.spId?net.splitters.find(s=>s.id===p.spId):null;
-    if(!sp && !p.cableName) return; // hide completely unconfigured ports
-    const active=ponPortActive(net,p.id);
-    const row=document.createElement('div');
-    row.style.cssText=`display:flex;flex-direction:column;gap:2px;padding:6px 8px;background:white;
-      border-radius:6px;border:1px solid ${active?'#bae6fd':'#e5e7eb'}`;
-
-    // Top line: port address + status
-    const topLine=document.createElement('div');
-    topLine.style.cssText='display:flex;align-items:center;gap:6px';
-    topLine.appendChild(ponFiberDot(p.fiberNum, p.cableHair?`Pelo ${p.cableHair} · ${PON_COLORS[ponHairToColorIdx(p.cableHair)-1].name}`:`Fibra ${p.fiberNum}`));
-    const portLbl=document.createElement('span');
-    portLbl.style.cssText='font-family:var(--mono);font-size:9px;color:#0c4a6e;font-weight:700;flex:1';
-    portLbl.textContent=`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${p.num}`;
-    topLine.appendChild(portLbl);
-    const statBadge=document.createElement('span');
-    statBadge.style.cssText=`font-family:var(--mono);font-size:7.5px;font-weight:700;padding:1px 8px;
-      border-radius:8px;background:${active?'#dcfce7':'#f1f5f9'};color:${active?'#15803d':'#94a3b8'}`;
-    statBadge.textContent=active?'ACTIVE':'DEACTIVE';
-    topLine.appendChild(statBadge);
-    row.appendChild(topLine);
-
-    // Bottom line: cable · pelo → SP
-    const botLine=document.createElement('div');
-    botLine.style.cssText='display:flex;align-items:center;gap:5px;padding-left:20px';
-    if(p.cableName||p.cableHair!=null){
-      const cableTag=document.createElement('span');
-      cableTag.style.cssText='font-family:var(--mono);font-size:8px;color:#374151;background:#f1f5f9;padding:1px 7px;border-radius:4px;border:1px solid #e2e8f0;font-weight:600';
-      const hairPart = p.cableHair!=null ? ` · P${p.cableHair}` : '';
-      cableTag.textContent=`📦 ${p.cableName||'?'}${hairPart}`;
-      botLine.appendChild(cableTag);
-      // Color name hint
-      if(p.cableHair!=null){
-        const col=PON_COLORS[ponHairToColorIdx(p.cableHair)-1];
-        const colorHint=document.createElement('span');
-        colorHint.style.cssText=`font-family:var(--mono);font-size:7.5px;color:${col.dark};background:${col.hex}22;padding:1px 6px;border-radius:4px;border:1px solid ${col.hex}55`;
-        colorHint.textContent=`${col.name}`;
-        botLine.appendChild(colorHint);
-      }
+  // ── Helper: step header ──
+  function stepHdr(num, label, color, btnLabel, btnCb){
+    const h=document.createElement('div');
+    h.style.cssText=`display:flex;align-items:center;gap:8px;padding:7px 12px;
+      background:${color}15;border:1.5px solid ${color}40;border-radius:8px 8px 0 0;margin-bottom:0`;
+    const numBadge=document.createElement('span');
+    numBadge.style.cssText=`font-family:var(--mono);font-size:11px;font-weight:700;
+      width:24px;height:24px;border-radius:50%;background:${color};color:white;
+      display:flex;align-items:center;justify-content:center;flex-shrink:0`;
+    numBadge.textContent=num;
+    const lbl=document.createElement('span');
+    lbl.style.cssText=`font-family:var(--sans);font-size:12px;font-weight:700;color:${color};flex:1`;
+    lbl.textContent=label;
+    h.appendChild(numBadge); h.appendChild(lbl);
+    if(btnLabel&&btnCb){
+      const b=document.createElement('button');
+      b.textContent=btnLabel;
+      b.style.cssText=`font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 12px;
+        border-radius:5px;background:${color};color:white;border:none;cursor:pointer`;
+      b.onclick=btnCb;
+      h.appendChild(b);
     }
-    if(sp){
-      const spLbl=document.createElement('span');
-      spLbl.style.cssText='font-family:var(--mono);font-size:8px;color:#64748b';
-      spLbl.textContent=`→ ${sp.name}`;
-      botLine.appendChild(spLbl);
-    }
-    row.appendChild(botLine);
-    oltGrid.appendChild(row);
-  });
-  oltCard.appendChild(oltGrid);
+    return h;
+  }
+  function stepBody(color){
+    const d=document.createElement('div');
+    d.style.cssText=`background:white;border:1.5px solid ${color}40;border-top:none;
+      border-radius:0 0 8px 8px;padding:10px 14px;margin-bottom:4px`;
+    return d;
+  }
 
-  // Splitters card
-  const spCard=ponCard('SP Primarios 1×8','#064e3b','#d1fae5','#059669');
-  spCard.style.minWidth='220px';
-  net.splitters.forEach(sp=>{
-    const spFeed=net.olt.ports.find(p=>p.id===sp.oltPortId);
-    const spDiv=document.createElement('div');
-    spDiv.style.cssText='margin-bottom:6px;padding:6px 8px;background:white;border-radius:6px;border:1.5px solid #a7f3d0';
+  // ── STEP 1: OLT ──
+  const s1h=stepHdr('①','OLT','#0c4a6e','✏ Editar OLT',()=>ponEditOLT());
+  const s1b=stepBody('#0c4a6e');
+  const oltInfo=document.createElement('div');
+  oltInfo.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+  const oltNameLbl=document.createElement('span');
+  oltNameLbl.style.cssText='font-family:var(--mono);font-size:12px;font-weight:700;color:#0c4a6e';
+  oltNameLbl.textContent=net.olt.name||'(sin nombre)';
+  const oltAddrLbl=document.createElement('span');
+  oltAddrLbl.style.cssText='font-family:var(--mono);font-size:11px;color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:4px';
+  oltAddrLbl.textContent=`Frame ${net.olt.frame} / Shelf ${net.olt.shelf} / Slot ${net.olt.slot}`;
+  oltInfo.appendChild(oltNameLbl); oltInfo.appendChild(oltAddrLbl);
+  s1b.appendChild(oltInfo);
+  topBar.appendChild(s1h); topBar.appendChild(s1b);
 
-    const spHdr=document.createElement('div');
-    spHdr.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:4px';
-    if(spFeed) spHdr.appendChild(ponFiberDot(spFeed.fiberNum,`Fibra OLT P${spFeed.num}`));
-    const spName=document.createElement('b');
-    spName.style.cssText='font-family:var(--mono);font-size:9px;color:#064e3b;flex:1';
-    spName.textContent=`${sp.name}`;
-    spHdr.appendChild(spName);
-    // Edit SP name
-    const editSpB=ponIconBtn('✏',()=>{
-      const n=prompt('Nombre del SP:',sp.name); if(!n) return;
-      sp.name=n; ponRender();
+  // ── STEP 2: Cables y Puertos ──
+  const configuredPorts=net.olt.ports.filter(p=>p.cableName&&p.cableName.trim()!=='');
+  const s2h=stepHdr('②','Cables · Puertos PON','#7c3aed','✏ Configurar puertos',()=>ponEditOLT());
+  const s2b=stepBody('#7c3aed');
+  if(configuredPorts.length===0){
+    const hint=document.createElement('p');
+    hint.style.cssText='font-family:var(--mono);font-size:10px;color:#9ca3af;margin:4px 0';
+    hint.textContent='Sin cables configurados. Hacé clic en "Configurar puertos" para asignar cable y pelo a cada puerto PON.';
+    s2b.appendChild(hint);
+  } else {
+    const portGrid=document.createElement('div');
+    portGrid.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+    configuredPorts.forEach(p=>{
+      const sp=p.spId?net.splitters.find(s=>s.id===p.spId):null;
+      const active=ponPortActive(net,p.id);
+      const card=document.createElement('div');
+      card.style.cssText=`display:flex;align-items:center;gap:6px;padding:5px 10px;
+        background:#faf5ff;border:1.5px solid ${active?'#a78bfa':'#ddd6fe'};border-radius:6px`;
+      card.appendChild(ponFiberDot(p.fiberNum,`Pelo ${p.cableHair}`,14));
+      const info=document.createElement('div');
+      const portStr=document.createElement('div');
+      portStr.style.cssText='font-family:var(--mono);font-size:11px;font-weight:700;color:#1f2937';
+      portStr.textContent=`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${p.num}`;
+      const cableStr=document.createElement('div');
+      cableStr.style.cssText='font-family:var(--mono);font-size:10px;color:#6d28d9';
+      const col=p.cableHair!=null?PON_COLORS[ponHairToColorIdx(p.cableHair)-1]:null;
+      cableStr.textContent=`📦 ${p.cableName}${p.cableHair!=null?' · P'+p.cableHair:''}`+(col?` (${col.name})`:'');
+      const spStr=document.createElement('div');
+      spStr.style.cssText='font-family:var(--mono);font-size:9.5px;color:#64748b';
+      spStr.textContent=sp?`→ ${sp.name}`:active?'ACTIVE':'DEACTIVE';
+      info.appendChild(portStr); info.appendChild(cableStr); if(sp) info.appendChild(spStr);
+      card.appendChild(info);
+      const actBadge=document.createElement('span');
+      actBadge.style.cssText=`font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;
+        border-radius:8px;background:${active?'#dcfce7':'#f1f5f9'};color:${active?'#15803d':'#94a3b8'}`;
+      actBadge.textContent=active?'ACTIVE':'DEACTIVE';
+      card.appendChild(actBadge);
+      portGrid.appendChild(card);
     });
-    spHdr.appendChild(editSpB);
-    // Delete SP — only if no CTOs connected
-    const hasCtos=sp.ports.some(p=>p.ctoId);
-    const delSpB=ponIconBtn('✕',()=>{
-      if(hasCtos){ alert('Primero desconectá todas las CTOs de este SP.'); return; }
-      // Unlink from OLT port
-      net.olt.ports.forEach(p=>{ if(p.spId===sp.id) p.spId=null; });
-      net.splitters=net.splitters.filter(s=>s.id!==sp.id);
-      ponRender();
-    },'#fee2e2','#dc2626');
-    delSpB.title=hasCtos?'Tiene CTOs conectadas — desconectalas primero':'Eliminar SP';
-    delSpB.style.opacity=hasCtos?'0.4':'1';
-    spHdr.appendChild(delSpB);
-    spDiv.appendChild(spHdr);
-    // Cable/pelo sub-line
-    if(spFeed&&spFeed.cableName){
-      const cableDiv=document.createElement('div');
-      cableDiv.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px;padding-left:2px';
-      const portRef=document.createElement('span');
-      portRef.style.cssText='font-family:var(--mono);font-size:7.5px;color:#374151';
-      portRef.textContent=`OLT ${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${spFeed.num}`;
-      const cableTag=document.createElement('span');
-      cableTag.style.cssText='font-family:var(--mono);font-size:7.5px;color:#374151;background:#f1f5f9;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0';
-      cableTag.textContent=`📦 ${spFeed.cableName}${spFeed.cableHair!=null?' · P'+spFeed.cableHair:''}`;
-      const col=spFeed.cableHair!=null?PON_COLORS[ponHairToColorIdx(spFeed.cableHair)-1]:null;
-      if(col){
-        const colorHint=document.createElement('span');
-        colorHint.style.cssText=`font-family:var(--mono);font-size:7px;color:${col.dark};background:${col.hex}22;padding:1px 5px;border-radius:3px`;
-        colorHint.textContent=col.name;
-        cableDiv.appendChild(cableTag);
-        cableDiv.appendChild(colorHint);
-      } else {
-        cableDiv.appendChild(cableTag);
-      }
-      spDiv.appendChild(cableDiv);
-    } else if(spFeed){
-      const portRef=document.createElement('div');
-      portRef.style.cssText='font-family:var(--mono);font-size:7.5px;color:#64748b;margin-bottom:4px';
-      portRef.textContent=`← OLT ${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${spFeed.num}`;
-      spDiv.appendChild(portRef);
-    }
+    s2b.appendChild(portGrid);
+  }
+  topBar.appendChild(s2h); topBar.appendChild(s2b);
 
-    // SP ports
-    const spPorts=document.createElement('div');
-    spPorts.style.cssText='display:flex;flex-wrap:wrap;gap:3px';
-    sp.ports.forEach(p=>{
-      const cto=p.ctoId?net.ctos.find(c=>c.id===p.ctoId):null;
-      const pd=document.createElement('div');
-      pd.style.cssText=`width:26px;height:26px;border-radius:4px;border:1.5px solid ${cto?'#34d399':'#d1d5db'};
-        background:${cto?'#ecfdf5':'#f9fafb'};display:flex;align-items:center;justify-content:center;
-        cursor:default;font-family:var(--mono);font-size:7px;color:${cto?'#065f46':'#9ca3af'}`;
-      pd.textContent=cto?cto.name.replace('CTO ',''):`P${p.num}`;
-      pd.title=`SP Puerto ${p.num}${cto?' → '+cto.name:''}`;
-      // Drop target for CTO drag
-      pd.dataset.spId=sp.id; pd.dataset.spPort=p.num;
-      pd.addEventListener('dragover',e=>{e.preventDefault();pd.style.outline='2px solid #fbbf24';});
-      pd.addEventListener('dragleave',()=>{pd.style.outline='none';});
-      pd.addEventListener('drop',e=>{
-        e.preventDefault(); pd.style.outline='none';
-        if(ponDragOnu?.type==='cto'){
-          const dragCto=net.ctos.find(c=>c.id===ponDragOnu.id);
-          if(!dragCto) return;
-          // Remove from old SP
-          net.splitters.forEach(s=>s.ports.forEach(pp=>{if(pp.ctoId===dragCto.id)pp.ctoId=null;}));
-          p.ctoId=dragCto.id; dragCto.spId=sp.id; dragCto.spPort=p.num;
-          ponDragOnu=null; ponRender();
+  // ── STEP 3: SP Primarios ──
+  const s3h=stepHdr('③','SP Primarios 1×8','#059669','+ Agregar SP',()=>ponShowAddSp());
+  const s3b=stepBody('#059669');
+  if(net.splitters.length===0){
+    const hint=document.createElement('p');
+    hint.style.cssText='font-family:var(--mono);font-size:10px;color:#9ca3af;margin:4px 0';
+    hint.textContent='Sin SP Primarios. Agregá uno y asocialo a un puerto PON configurado arriba.';
+    s3b.appendChild(hint);
+  } else {
+    const spRow=document.createElement('div');
+    spRow.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+    net.splitters.forEach(sp=>{
+      const spFeed = sp.oltPortId
+      ? net.olt.ports.find(p=>p.id===sp.oltPortId)
+      : net.olt.ports.find(p=>p.spId===sp.id);
+    // Keep both directions in sync
+    if(spFeed && !spFeed.spId) spFeed.spId=sp.id;
+    if(spFeed && !sp.oltPortId) sp.oltPortId=spFeed.id;
+      const ctoCount=sp.ports.filter(p=>p.ctoId).length;
+      const spCard2=document.createElement('div');
+      spCard2.style.cssText='background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:7px;padding:8px 12px;min-width:180px';
+      // Name row
+      const nameRow=document.createElement('div');
+      nameRow.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px';
+      if(spFeed) nameRow.appendChild(ponFiberDot(spFeed.fiberNum,'',13));
+      const spNm=document.createElement('span');
+      spNm.style.cssText='font-family:var(--mono);font-size:11px;font-weight:700;color:#065f46;flex:1';
+      spNm.textContent=sp.name;
+      nameRow.appendChild(spNm);
+      // Edit
+      const eB=ponIconBtn('✏',()=>{ const n=prompt('Nombre:',sp.name); if(!n) return; sp.name=n; ponRender(); });
+      nameRow.appendChild(eB);
+      // Delete
+      const hasCtos2=sp.ports.some(p=>p.ctoId);
+      const dB=ponIconBtn('✕',()=>{
+        if(hasCtos2){ alert('Primero desconectá las CTOs.'); return; }
+        net.olt.ports.forEach(p=>{ if(p.spId===sp.id) p.spId=null; });
+        net.splitters=net.splitters.filter(s=>s.id!==sp.id);
+        ponRender();
+      },'#fee2e2','#dc2626');
+      dB.style.opacity=hasCtos2?'0.4':'1';
+      nameRow.appendChild(dB);
+      spCard2.appendChild(nameRow);
+      // Feed info + port selector (always visible, pre-selected if already linked)
+      {
+        const allCablePorts=net.olt.ports.filter(p=>p.cableName&&p.cableName.trim()!==''&&(!p.spId||p.spId===sp.id));
+        if(allCablePorts.length>0){
+          const linkRow=document.createElement('div');
+          linkRow.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px';
+          const lk=document.createElement('select');
+          lk.style.cssText=`font-family:var(--mono);font-size:9.5px;padding:3px 7px;
+            border:1.5px solid ${spFeed?'#059669':'#d1d5db'};border-radius:4px;flex:1;
+            background:${spFeed?'#f0fdf4':'white'}`;
+          const defOpt=document.createElement('option'); defOpt.value=''; defOpt.textContent='← seleccioná puerto PON...'; lk.appendChild(defOpt);
+          allCablePorts.forEach(pp=>{
+            const o=document.createElement('option');
+            o.value=pp.id;
+            const col=pp.cableHair!=null?PON_COLORS[ponHairToColorIdx(pp.cableHair)-1]:null;
+            o.textContent=`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${pp.num} · 📦 ${pp.cableName}${pp.cableHair!=null?' P'+pp.cableHair:''}${col?' ('+col.name+')':''}`;
+            if(spFeed&&pp.id===spFeed.id) o.selected=true;
+            lk.appendChild(o);
+          });
+          lk.onmousedown=e=>e.stopPropagation();
+          lk.onchange=()=>{
+            // Clear previous link
+            net.olt.ports.forEach(p=>{ if(p.spId===sp.id) p.spId=null; });
+            sp.oltPortId=null;
+            if(lk.value) ponLinkOltSp(net,lk.value,sp.id);
+            ponRender();
+          };
+          linkRow.appendChild(lk);
+          spCard2.appendChild(linkRow);
+        } else {
+          if(!spFeed){
+            const noPort=document.createElement('div');
+            noPort.style.cssText='font-family:var(--mono);font-size:9.5px;color:#9ca3af;margin-bottom:5px';
+            noPort.textContent='Sin puertos con cable disponibles — configurá cables primero';
+            spCard2.appendChild(noPort);
+          }
         }
+      }
+      // CTO count
+      const ctoCnt=document.createElement('div');
+      ctoCnt.style.cssText='font-family:var(--mono);font-size:9.5px;color:#64748b';
+      ctoCnt.textContent=`${ctoCount}/8 puertos con CTO`;
+      spCard2.appendChild(ctoCnt);
+      // SP ports — drop targets for CTO drag
+      const spPortsDiv=document.createElement('div');
+      spPortsDiv.style.cssText='display:flex;flex-wrap:wrap;gap:3px;margin-top:5px';
+      sp.ports.forEach(port=>{
+        const cto=port.ctoId?net.ctos.find(c=>c.id===port.ctoId):null;
+        const pd=document.createElement('div');
+        pd.style.cssText=`width:28px;height:28px;border-radius:4px;
+          border:1.5px solid ${cto?'#34d399':'#d1d5db'};
+          background:${cto?'#ecfdf5':'#f9fafb'};
+          display:flex;align-items:center;justify-content:center;
+          font-family:var(--mono);font-size:9px;color:${cto?'#065f46':'#9ca3af'};
+          cursor:default;user-select:none`;
+        pd.textContent=cto?cto.name.slice(-3):`P${port.num}`;
+        pd.title=`Puerto ${port.num}${cto?' → '+cto.name:''}`;
+        pd.addEventListener('dragover',e=>{e.preventDefault();pd.style.outline='2px solid #fbbf24';});
+        pd.addEventListener('dragleave',()=>{pd.style.outline='none';});
+        pd.addEventListener('drop',e=>{
+          e.preventDefault(); pd.style.outline='none';
+          if(ponDragOnu?.type==='cto'){
+            const dragCto=net.ctos.find(c=>c.id===ponDragOnu.id);
+            if(!dragCto) return;
+            net.splitters.forEach(s=>s.ports.forEach(pp=>{if(pp.ctoId===dragCto.id)pp.ctoId=null;}));
+            port.ctoId=dragCto.id; dragCto.spId=sp.id; dragCto.spPort=port.num;
+            if(!dragCto.origOltPortId && sp.oltPortId) dragCto.origOltPortId=sp.oltPortId;
+            ponDragOnu=null; ponRender();
+          }
+        });
+        spPortsDiv.appendChild(pd);
       });
-      spPorts.appendChild(pd);
+      spCard2.appendChild(spPortsDiv);
+      spRow.appendChild(spCard2);
     });
-    spDiv.appendChild(spPorts);
-    spCard.appendChild(spDiv);
-  });
+    s3b.appendChild(spRow);
+  }
+  topBar.appendChild(s3h); topBar.appendChild(s3b);
 
-  // Add buttons card
-  const actCard=ponCard('Acciones','#1e293b','#f8fafc','#64748b');
-  actCard.style.minWidth='160px';
-  const editOltB=ponBtn('✏ Editar OLT','#1e3a5f','white',()=>ponEditOLT());
-  const addOnuB=ponBtn('+ Cliente','#0e7490','white',()=>ponShowAddOnu());
-  const addCtoB=ponBtn('+ CTO','#0284c7','white',()=>ponShowAddCto());
-  const addSpB= ponBtn('+ SP Primario','#059669','white',()=>ponShowAddSp());
-  const resetB= ponBtn('↺ Ejemplo','#64748b','white',()=>{ponInit();ponRender();});
-  [editOltB,addOnuB,addCtoB,addSpB,resetB].forEach(b=>{b.style.width='100%';b.style.marginBottom='4px';actCard.appendChild(b);});
+  // ── STEP 4 & 5: actions bar ──
+  const actBar=document.createElement('div');
+  actBar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 12px;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:8px';
+  const s4lbl=document.createElement('span');
+  s4lbl.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;color:#374151';
+  s4lbl.textContent='④ CTOs:';
+  const addCtoB=ponBtn('+ Agregar CTO','#0284c7','white',()=>ponShowAddCto());
+  const s5lbl=document.createElement('span');
+  s5lbl.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;color:#374151;margin-left:12px';
+  s5lbl.textContent='⑤ Clientes:';
+  const addOnuB=ponBtn('+ Agregar Cliente','#0e7490','white',()=>ponShowAddOnu());
+  const resetB=ponBtn('↺ Restablecer ejemplo','#64748b','white',()=>{ponInit();ponRender();});
+  resetB.style.marginLeft='auto';
+  [s4lbl,addCtoB,s5lbl,addOnuB,resetB].forEach(el=>actBar.appendChild(el));
+  topBar.appendChild(actBar);
 
-  topBar.appendChild(oltCard);
-  topBar.appendChild(spCard);
-  topBar.appendChild(actCard);
   body.appendChild(topBar);
 
   // ══ STATS BAR ══
@@ -2324,12 +2391,12 @@ function ponRender(){
   const stats=document.createElement('div');
   stats.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:white;border-radius:8px;border:1px solid #e5e7eb';
   stats.innerHTML=`
-    <span style="font-family:var(--mono);font-size:8.5px;color:#374151;font-weight:700">Estado de red:</span>
-    <span style="background:#dcfce7;color:#15803d;font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px">✔ ${nOk} NORMAL</span>
-    ${nPatched>0?`<span style="background:#fefce8;color:#854d0e;font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px">⚠ ${nPatched} SYNC · CORRECCIÓN MANUAL</span>`:''}
-    <span style="background:#fee2e2;color:#991b1b;font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px">✖ ${nBad} FAULT</span>
-    <span style="font-family:var(--mono);font-size:8px;color:#6b7280">${nTotal} clientes totales</span>
-    <span style="font-family:var(--mono);font-size:7.5px;color:#9ca3af;margin-left:auto">Arrastrá ONU entre CTOs · Arrastrá CTO entre puertos del SP</span>`;
+    <span style="font-family:var(--mono);font-size:10.5px;color:#374151;font-weight:700">Estado de red:</span>
+    <span style="background:#dcfce7;color:#15803d;font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px">✔ ${nOk} NORMAL</span>
+    ${nPatched>0?`<span style="background:#fefce8;color:#854d0e;font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px">⚠ ${nPatched} SYNC · CORRECCIÓN MANUAL</span>`:''}
+    <span style="background:#fee2e2;color:#991b1b;font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px">✖ ${nBad} FAULT</span>
+    <span style="font-family:var(--mono);font-size:10px;color:#6b7280">${nTotal} clientes totales</span>
+    <span style="font-family:var(--mono);font-size:9.5px;color:#9ca3af;margin-left:auto">Arrastrá ONU entre CTOs · Arrastrá CTO entre puertos del SP</span>`;
   body.appendChild(stats);
 
   // ══ UNASSIGNED CLIENTS POOL ══
@@ -2338,7 +2405,7 @@ function ponRender(){
     const pool=document.createElement('div');
     pool.style.cssText='background:#f0f9ff;border:2px dashed #7dd3fc;border-radius:10px;padding:10px 14px';
     const poolTitle=document.createElement('div');
-    poolTitle.style.cssText='font-family:var(--mono);font-size:8px;font-weight:700;color:#0369a1;margin-bottom:8px;letter-spacing:1px;text-transform:uppercase';
+    poolTitle.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;color:#0369a1;margin-bottom:8px;letter-spacing:1px;text-transform:uppercase';
     poolTitle.textContent=`📦 Clientes sin asignar — arrastrá a una CTO (${unassigned.length})`;
     pool.appendChild(poolTitle);
     const poolRow=document.createElement('div');
@@ -2354,7 +2421,7 @@ function ponRender(){
       });
       chip.addEventListener('dragend',()=>{ chip.style.opacity='1'; ponDragOnu=null; });
       const nameSpan=document.createElement('span');
-      nameSpan.style.cssText='font-family:var(--mono);font-size:9px;font-weight:600;color:#0c4a6e';
+      nameSpan.style.cssText='font-family:var(--mono);font-size:11px;font-weight:600;color:#0c4a6e';
       nameSpan.textContent=onu.name;
       // Editable name inline
       nameSpan.contentEditable=true;
@@ -2407,7 +2474,7 @@ function ponRender(){
     // Editable name input
     const ctoNameInp=document.createElement('input');
     ctoNameInp.value=cto.name;
-    ctoNameInp.style.cssText=`font-family:var(--sans);font-size:12px;font-weight:700;
+    ctoNameInp.style.cssText=`font-family:var(--sans);font-size:14px;font-weight:700;
       color:${anyMismatch?'#991b1b':anyPatched?'#92400e':'#1f2937'};background:transparent;border:none;
       border-bottom:1.5px solid transparent;outline:none;width:120px;cursor:text`;
     ctoNameInp.onmousedown=e=>e.stopPropagation(); // don't trigger drag
@@ -2417,7 +2484,7 @@ function ponRender(){
     ctoTitleDiv.appendChild(ctoNameInp);
 
     const ctoSubLbl=document.createElement('div');
-    ctoSubLbl.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280';
+    ctoSubLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#6b7280';
     ctoSubLbl.innerHTML=`SP: ${sp?sp.name:'⚠ sin SP'} · Puerto ${cto.spPort||'?'} · Ruta: ${feedOltPort?`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${feedOltPort.num}`:'?'}
       ${anyMismatch?'<span style="color:#dc2626;font-weight:700;margin-left:8px">⚠ Clientes FAULT — toma incorrecta</span>':anyPatched?'<span style="color:#b45309;font-weight:700;margin-left:8px">⚠ Sync por corrección manual · toma física pendiente</span>':''}`;
     ctoTitleDiv.appendChild(ctoSubLbl);
@@ -2436,17 +2503,18 @@ function ponRender(){
 
     // ── Client table ──
     const table=document.createElement('table');
-    table.style.cssText='width:100%;border-collapse:collapse;font-family:var(--mono);font-size:8.5px';
+    table.style.cssText='width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10.5px';
 
     // Header row
     const thead=document.createElement('thead');
     thead.innerHTML=`<tr style="background:#f1f5f9">
-      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Cliente</th>
-      <th style="padding:6px 10px;text-align:center;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Puerto CTO</th>
-      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">OLT asignado</th>
-      <th style="padding:6px 10px;text-align:left;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Ruta física</th>
-      <th style="padding:6px 10px;text-align:center;color:#475569;font-weight:600;font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Estado</th>
-      <th style="padding:6px 8px;border-bottom:1px solid #e5e7eb"></th>
+      <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Cliente</th>
+      <th style="padding:7px 10px;text-align:center;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Pto CTO</th>
+      <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Cable · Pelo</th>
+      <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">OLT asignado</th>
+      <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Ruta física</th>
+      <th style="padding:7px 10px;text-align:center;color:#475569;font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid #e5e7eb">Estado</th>
+      <th style="padding:7px 8px;border-bottom:1px solid #e5e7eb"></th>
     </tr>`;
     table.appendChild(thead);
 
@@ -2454,7 +2522,7 @@ function ponRender(){
 
     if(ctoOnus.length===0){
       const emptyRow=document.createElement('tr');
-      emptyRow.innerHTML=`<td colspan="6" style="padding:12px 14px;color:#9ca3af;text-align:center;font-style:italic">Sin clientes en esta CTO — arrastrá ONUs desde otras CTOs o agregá nuevos</td>`;
+      emptyRow.innerHTML=`<td colspan="7" style="padding:12px 14px;color:#9ca3af;text-align:center;font-style:italic;font-family:var(--mono);font-size:12px">Sin clientes en esta CTO — arrastrá desde el pool de arriba</td>`;
       // Drop target for empty CTO
       emptyRow.addEventListener('dragover',e=>{e.preventDefault();emptyRow.style.background='#dbeafe';});
       emptyRow.addEventListener('dragleave',()=>{emptyRow.style.background='';});
@@ -2487,7 +2555,7 @@ function ponRender(){
       if(isEdit){
         // ── Inline edit row ──
         const editTd=document.createElement('td');
-        editTd.colSpan=6;
+        editTd.colSpan=7;  // one extra for cable column
         editTd.style.cssText='padding:10px 14px;background:#fffbeb;border-bottom:2px solid #fde68a';
         editTd.appendChild(ponEditForm(onu, ()=>{ ponEditId=null; ponRender(); }));
         tr.appendChild(editTd);
@@ -2495,29 +2563,118 @@ function ponRender(){
         // ── Display row ──
         // Client name
         const tdName=document.createElement('td');
-        tdName.style.cssText='padding:7px 10px;font-weight:600;color:#1f2937';
-        tdName.textContent=onu.name;
 
-        // CTO port
+        // Original data — always show when exists
+        const hasOrig=!!onu.origCtoId;
+        const origChanged=hasOrig&&(onu.origCtoId!==onu.ctoId||onu.origOltPortId!==onu.oltPortId);
+        const origCto=hasOrig?net.ctos.find(c=>c.id===onu.origCtoId):null;
+        const origOltPort=hasOrig?net.olt.ports.find(p=>p.id===onu.origOltPortId):null;
+        // Use frozen cable data stored at alta — never recalculated from current CTO chain
+        const origCableInfo = hasOrig ? {
+          cable:    onu.origCableName || '',
+          hair:     onu.origCableHair ?? null,
+          fiberNum: onu.origFiberNum  ?? 1,
+        } : null;
+
+        // Client name + alta sub-line always when original exists
+        tdName.style.cssText='padding:8px 10px;color:#1f2937;font-family:var(--mono);font-size:12px';
+        const nameTop=document.createElement('div');
+        nameTop.style.cssText='font-weight:600;font-size:12px';
+        nameTop.textContent=onu.name;
+        tdName.appendChild(nameTop);
+        if(hasOrig){
+          const altaLbl=document.createElement('div');
+          altaLbl.style.cssText=`font-size:10.5px;margin-top:2px;font-family:var(--mono);color:${origChanged?'#b45309':'#9ca3af'}`;
+          altaLbl.textContent=`Alta: ${origCto?.name||onu.origCtoId||'?'} P${onu.origCtoPort||'?'}`;
+          tdName.appendChild(altaLbl);
+        }
+
+        // CTO port — show current, and original if changed
         const tdPort=document.createElement('td');
-        tdPort.style.cssText='padding:7px 10px;text-align:center;color:#374151';
-        tdPort.textContent=`P${onu.ctoPort}`;
+        tdPort.style.cssText='padding:8px 10px;text-align:center;font-family:var(--mono)';
+        const portCurr=document.createElement('div');
+        portCurr.style.cssText='font-size:12px;font-weight:600;color:#374151';
+        portCurr.textContent=`P${onu.ctoPort}`;
+        tdPort.appendChild(portCurr);
+        if(origChanged&&onu.origCtoPort!==onu.ctoPort){
+          const portOrig=document.createElement('div');
+          portOrig.style.cssText='font-size:10px;color:#9ca3af;text-decoration:line-through';
+          portOrig.textContent=`P${onu.origCtoPort}`;
+          tdPort.appendChild(portOrig);
+        }
 
-        // OLT assigned (with fiber dots)
+        // Cable · Pelo — show current, and original if changed
+        const tdCable=document.createElement('td');
+        tdCable.style.cssText='padding:8px 10px';
+
+        function makeCableDiv(cableInfo, isOrig){
+          const d=document.createElement('div');
+          d.style.cssText=`display:flex;align-items:center;gap:5px${isOrig?';opacity:.55':''}`;
+          if(isOrig){
+            const origTag=document.createElement('span');
+            origTag.style.cssText='font-family:var(--mono);font-size:10px;color:#6b7280;background:#f1f5f9;padding:1px 5px;border-radius:3px;flex-shrink:0';
+            origTag.textContent='Alta:';
+            d.appendChild(origTag);
+          }
+          if(cableInfo){
+            if(cableInfo.hair!=null) d.appendChild(ponFiberDot(cableInfo.fiberNum,`Pelo ${cableInfo.hair}`,isOrig?10:12));
+            const lbl=document.createElement('span');
+            lbl.style.cssText=`font-family:var(--mono);font-size:${isOrig?'8.5':'10'}px;color:${isOrig?'#6b7280':'#374151'};font-weight:${isOrig?'400':'600'}`;
+            lbl.textContent=ponCableLabel(cableInfo);
+            d.appendChild(lbl);
+            if(cableInfo.hair!=null&&!isOrig){
+              const col=PON_COLORS[ponHairToColorIdx(cableInfo.hair)-1];
+              const colorChip=document.createElement('span');
+              colorChip.style.cssText=`font-family:var(--mono);font-size:10.5px;padding:1px 6px;border-radius:4px;background:${col.hex}22;color:${col.dark};border:1px solid ${col.hex}55`;
+              colorChip.textContent=col.name;
+              d.appendChild(colorChip);
+            }
+          } else {
+            const naLbl=document.createElement('span');
+            naLbl.style.cssText='font-family:var(--mono);font-size:12px;color:#9ca3af';
+            naLbl.textContent='—';
+            d.appendChild(naLbl);
+          }
+          return d;
+        }
+
+        const currCableInfo=ponCtoCableInfo(net,onu.ctoId);
+        tdCable.appendChild(makeCableDiv(currCableInfo, false));
+        // Always show original cable/pelo below
+        if(hasOrig){
+          tdCable.appendChild(makeCableDiv(origCableInfo, true));
+        }
+
+        // OLT assigned (with fiber dots) — current + original if changed
         const tdLogic=document.createElement('td');
-        tdLogic.style.cssText='padding:7px 10px';
+        tdLogic.style.cssText='padding:8px 10px';
         const logicDiv=document.createElement('div');
         logicDiv.style.cssText='display:flex;align-items:center;gap:5px';
         if(logicPort) logicDiv.appendChild(ponFiberDot(logicPort.fiberNum,`Fibra ${logicPort.fiberNum}`));
         const logicLbl=document.createElement('span');
-        logicLbl.style.cssText=`color:${r.sync?'#374151':'#dc2626'};font-weight:${r.sync?'400':'700'}`;
+        logicLbl.style.cssText=`font-family:var(--mono);font-size:12px;color:${r.sync?'#374151':'#dc2626'};font-weight:${r.sync?'400':'700'}`;
         logicLbl.textContent=logicPort?`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${logicPort.num}`:'?';
         logicDiv.appendChild(logicLbl);
         tdLogic.appendChild(logicDiv);
+        // Show original OLT port always when it exists
+        if(hasOrig&&onu.origOltPortId){
+          const origDiv=document.createElement('div');
+          origDiv.style.cssText='display:flex;align-items:center;gap:4px;margin-top:3px';
+          const origTag=document.createElement('span');
+          origTag.style.cssText=`font-family:var(--mono);font-size:10px;background:#f1f5f9;padding:1px 5px;border-radius:3px;color:${origChanged&&onu.origOltPortId!==onu.oltPortId?'#b45309':'#9ca3af'}`;
+          origTag.textContent='Alta:';
+          origDiv.appendChild(origTag);
+          if(origOltPort) origDiv.appendChild(ponFiberDot(origOltPort.fiberNum,'',10));
+          const origLbl=document.createElement('span');
+          origLbl.style.cssText=`font-family:var(--mono);font-size:10.5px;color:${origChanged&&onu.origOltPortId!==onu.oltPortId?'#b45309':'#9ca3af'}`;
+          origLbl.textContent=origOltPort?`${net.olt.frame}/${net.olt.shelf}/${net.olt.slot}/${origOltPort.num}`:'?';
+          origDiv.appendChild(origLbl);
+          tdLogic.appendChild(origDiv);
+        }
 
         // Physical route (with fiber dots)
         const tdPhys=document.createElement('td');
-        tdPhys.style.cssText='padding:7px 10px';
+        tdPhys.style.cssText='padding:8px 10px';
         const physDiv=document.createElement('div');
         physDiv.style.cssText='display:flex;align-items:center;gap:5px';
         if(physPort) physDiv.appendChild(ponFiberDot(physPort.fiberNum,`Fibra ${physPort.fiberNum}`));
@@ -2534,12 +2691,12 @@ function ponRender(){
         const badgeBg  = r.status==='ok'?'#dcfce7':r.status==='patched'?'#fefce8':'#fee2e2';
         const badgeClr = r.status==='ok'?'#15803d':r.status==='patched'?'#854d0e':'#991b1b';
         const badgeTxt = r.status==='ok'?'NORMAL':r.status==='patched'?'SYNC · CORRECCIÓN MANUAL':'FAULT';
-        badge.style.cssText=`font-family:var(--mono);font-size:8px;font-weight:700;padding:3px 9px;border-radius:10px;background:${badgeBg};color:${badgeClr}`;
+        badge.style.cssText=`font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:${badgeBg};color:${badgeClr}`;
         badge.textContent=badgeTxt;
         tdStatus.appendChild(badge);
         if(r.status!=='ok'){
           const tip=document.createElement('div');
-          tip.style.cssText=`font-size:7px;color:${badgeClr};margin-top:2px;font-family:var(--mono);max-width:180px`;
+          tip.style.cssText=`font-size:9px;color:${badgeClr};margin-top:2px;font-family:var(--mono);max-width:180px`;
           if(r.status==='mismatch')
             tip.textContent=`Físico: port ${physPort?physPort.num:'?'} · Asignado: port ${logicPort?logicPort.num:'?'}`;
           else if(r.status==='patched')
@@ -2555,6 +2712,7 @@ function ponRender(){
         tdAct.appendChild(editB); tdAct.appendChild(delB);
 
         tr.appendChild(tdName); tr.appendChild(tdPort);
+        tr.appendChild(tdCable);
         tr.appendChild(tdLogic); tr.appendChild(tdPhys);
         tr.appendChild(tdStatus); tr.appendChild(tdAct);
       }
@@ -2598,7 +2756,7 @@ function ponRender(){
     fixBox.style.cssText='background:#fff7ed;border:1.5px solid #fed7aa;border-radius:9px;padding:12px 16px';
     const mismatchCount=problemOnus.filter(o=>ponCheck(o).status==='mismatch').length;
     const patchedCount=problemOnus.filter(o=>ponCheck(o).status==='patched').length;
-    fixBox.innerHTML=`<div style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#92400e;margin-bottom:7px">
+    fixBox.innerHTML=`<div style="font-family:var(--mono);font-size:10.5px;font-weight:700;color:#92400e;margin-bottom:7px">
       ${mismatchCount>0?`✖ ${mismatchCount} cliente${mismatchCount!==1?'s':''} FAULT`:''}
       ${patchedCount>0?` · ⚠ ${patchedCount} con corrección manual`:''} — soluciones posibles:</div>`;
     problemOnus.forEach(onu=>{
@@ -2610,11 +2768,11 @@ function ponRender(){
       div.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap;padding:6px 8px;background:white;border-radius:6px;border:1px solid #fed7aa';
 
       const statusDot=r.status==='mismatch'?'🔴':'🟡';
-      div.innerHTML=`<span style="font-family:var(--mono);font-size:8.5px;color:#374151">
+      div.innerHTML=`<span style="font-family:var(--mono);font-size:10.5px;color:#374151">
         ${statusDot} <b>${onu.name}</b> · ${cto?.name} · 
         Físico: <b>${ponPortLabel(net,r.physOltPortId)}</b> · 
         Lógico: <b>${ponPortLabel(net,r.logicOltPortId)}</b>
-        ${r.status==='patched'?'<span style="color:#b45309;font-size:7.5px;margin-left:4px">(sync por corrección manual · toma física pendiente)</span>':''}
+        ${r.status==='patched'?'<span style="color:#b45309;font-size:9.5px;margin-left:4px">(sync por corrección manual · toma física pendiente)</span>':''}
       </span>`;
 
       // Fix 1: corrección física — mover CTO al SP correcto
@@ -2630,7 +2788,7 @@ function ponRender(){
             net.onus.filter(o=>o.ctoId===cto.id).forEach(o=>{ delete o.patched; });
             ponRender();
           });
-        fix1.style.cssText+='font-size:7.5px;padding:4px 9px';
+        fix1.style.cssText+='font-size:9.5px;padding:4px 9px';
         div.appendChild(fix1);
       }
 
@@ -2642,7 +2800,7 @@ function ponRender(){
             onu.patched=true;  // marcar que sincroniza por parche, no por corrección física
             ponRender();
           });
-        fix2.style.cssText+='font-size:7.5px;padding:4px 9px';
+        fix2.style.cssText+='font-size:9.5px;padding:4px 9px';
         div.appendChild(fix2);
       }
 
@@ -2653,7 +2811,7 @@ function ponRender(){
             delete onu.patched;
             ponRender();
           });
-        fix3.style.cssText+='font-size:7.5px;padding:4px 9px';
+        fix3.style.cssText+='font-size:9.5px;padding:4px 9px';
         div.appendChild(fix3);
       }
 
@@ -2668,7 +2826,7 @@ function ponCard(title,titleColor,bg,brd){
   const d=document.createElement('div');
   d.style.cssText=`background:${bg};border:1.5px solid ${brd};border-radius:9px;padding:10px 12px;flex-shrink:0`;
   const t=document.createElement('div');
-  t.style.cssText=`font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;
+  t.style.cssText=`font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;
     text-transform:uppercase;color:${titleColor};margin-bottom:8px`;
   t.textContent=title;
   d.appendChild(t);
@@ -2677,14 +2835,14 @@ function ponCard(title,titleColor,bg,brd){
 function ponBtn(text,bg,color,cb){
   const b=document.createElement('button');
   b.textContent=text;
-  b.style.cssText=`font-family:var(--mono);font-size:8.5px;font-weight:600;padding:5px 11px;
+  b.style.cssText=`font-family:var(--mono);font-size:10.5px;font-weight:600;padding:5px 11px;
     border-radius:5px;background:${bg};color:${color};border:none;cursor:pointer`;
   b.onclick=cb; return b;
 }
 function ponIconBtn(icon,cb,bg='#f1f5f9',color='#374151'){
   const b=document.createElement('button');
   b.textContent=icon;
-  b.style.cssText=`font-size:10px;padding:3px 6px;border-radius:4px;background:${bg};
+  b.style.cssText=`font-size:12px;padding:3px 6px;border-radius:4px;background:${bg};
     color:${color};border:1px solid #e5e7eb;cursor:pointer;margin-left:3px`;
   b.onclick=e=>{ e.stopPropagation(); cb(); }; return b;
 }
@@ -2698,20 +2856,20 @@ function ponEditForm(onu, onDone){
   function field(label, el){
     const d=document.createElement('div');
     const l=document.createElement('div');
-    l.style.cssText='font-family:var(--mono);font-size:7.5px;color:#6b7280;margin-bottom:3px';
+    l.style.cssText='font-family:var(--mono);font-size:9.5px;color:#6b7280;margin-bottom:3px';
     l.textContent=label;
     d.appendChild(l); d.appendChild(el); return d;
   }
   function textInp(val){
     const i=document.createElement('input'); i.value=val;
-    i.style.cssText='font-family:var(--mono);font-size:9.5px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;outline:none;width:180px';
+    i.style.cssText='font-family:var(--mono);font-size:11.5px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;outline:none;width:180px';
     i.onfocus=()=>i.style.borderColor='#6d28d9';
     i.onblur=()=>i.style.borderColor='#d1d5db';
     return i;
   }
   function selectEl(options, current){
     const s=document.createElement('select');
-    s.style.cssText='font-family:var(--mono);font-size:9px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer';
+    s.style.cssText='font-family:var(--mono);font-size:11px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;background:white;color:#1f2937;cursor:pointer';
     options.forEach(([v,l])=>{ const o=document.createElement('option'); o.value=v; o.textContent=l; if(v===current)o.selected=true; s.appendChild(o); });
     return s;
   }
@@ -2726,15 +2884,17 @@ function ponEditForm(onu, onDone){
 
   // Preview
   const preview=document.createElement('div');
-  preview.style.cssText='font-family:var(--mono);font-size:8px;color:#6b7280;padding:4px 8px;background:#f8fafc;border-radius:5px;border:1px solid #e5e7eb;flex:1;min-width:200px';
+  preview.style.cssText='font-family:var(--mono);font-size:10px;color:#6b7280;padding:4px 8px;background:#f8fafc;border-radius:5px;border:1px solid #e5e7eb;flex:1;min-width:200px';
   function updatePreview(){
     const selCto=net.ctos.find(c=>c.id===ctoS.value);
     const selSp=selCto?net.splitters.find(s=>s.id===selCto.spId):null;
     const physPort=selSp?net.olt.ports.find(p=>p.id===selSp.oltPortId):null;
     const logicPort=net.olt.ports.find(p=>p.id===oltS.value);
     const ok=physPort&&logicPort&&physPort.id===logicPort.id;
-    preview.innerHTML=`<b>Vista previa:</b> ${nameI.value||'?'} → ${selCto?.name||'?'} → ${selSp?.name||'?'} → OLT P${physPort?.num||'?'}<br>
-      Asignado lógico: OLT P${logicPort?.num||'?'} → <b style="color:${ok?'#15803d':'#dc2626'}">${ok?'✔ SYNC':'✖ MISMATCH'}</b>`;
+    const isPatching=logicPort&&onu.origOltPortId&&logicPort.id!==onu.origOltPortId;
+    preview.innerHTML=`<b>Vista previa:</b> ${nameI.value||'?'} → ${selCto?.name||'?'} → OLT físico P${physPort?.num||'?'}<br>
+      Asignado: P${logicPort?.num||'?'} → <b style="color:${ok?'#15803d':'#dc2626'}">${ok?(isPatching?'SYNC · CORRECCIÓN MANUAL':'NORMAL'):'FAULT'}</b>
+      ${isPatching?'<span style="color:#b45309;font-size:9.5px"> · puerto original: P'+net.olt.ports.find(p=>p.id===onu.origOltPortId)?.num+'</span>':''}`;
   }
   [ctoS,portS,oltS,nameI].forEach(el=>{ el.oninput=updatePreview; el.onchange=updatePreview; });
   updatePreview();
@@ -2774,6 +2934,8 @@ function ponDeleteOnu(id){
 function ponMoveOnu(onuId, toCtoId, toPortNum){
   const net=ponNet;
   const onu=net.onus.find(o=>o.id===onuId); if(!onu) return;
+  const isFirstAssignment=!onu.origCtoId;
+
   // Remove from old port
   net.ctos.forEach(c=>c.ports.forEach(p=>{ if(p.onuId===onuId) p.onuId=null; }));
   onu.ctoId=toCtoId;
@@ -2782,11 +2944,20 @@ function ponMoveOnu(onuId, toCtoId, toPortNum){
     ? toCto.ports.find(p=>p.num===toPortNum&&!p.onuId)
     : toCto.ports.find(p=>!p.onuId);
   if(freePort){ freePort.onuId=onuId; onu.ctoPort=freePort.num; }
-  // Auto-assign OLT port from CTO's physical SP — clean, no patched flag
-  const sp=net.splitters.find(s=>s.id===toCto.spId);
-  const physOltPort=sp?net.olt.ports.find(p=>p.id===sp.oltPortId):null;
-  if(physOltPort) onu.oltPortId=physOltPort.id;
-  delete onu.patched;
+
+  if(isFirstAssignment){
+    onu.oltPortId      = toCto.origOltPortId || null;
+    onu.origCtoId      = onu.ctoId;
+    onu.origCtoPort    = onu.ctoPort;
+    onu.origOltPortId  = onu.oltPortId;
+    // Freeze cable/pelo at alta — stored directly, never recalculated
+    const altaOltP = onu.origOltPortId ? net.olt.ports.find(p=>p.id===onu.origOltPortId) : null;
+    onu.origCableName = altaOltP?.cableName || '';
+    onu.origCableHair = altaOltP?.cableHair ?? null;
+    onu.origFiberNum  = altaOltP?.fiberNum  ?? null;
+    delete onu.patched;
+  }
+  // Moving existing client: only update CTO/port, never touch oltPortId or orig data
   ponDragOnu=null; ponRender();
 }
 
@@ -2802,10 +2973,10 @@ function ponEditOLT(){
 
   const hdr=document.createElement('div');
   hdr.style.cssText='background:#1e3a5f;padding:12px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between';
-  hdr.innerHTML=`<span style="font-family:var(--sans);font-size:12px;font-weight:700;color:white">Configurar OLT y cables</span>`;
+  hdr.innerHTML=`<span style="font-family:var(--sans);font-size:14px;font-weight:700;color:white">Configurar OLT y cables</span>`;
   const closeB=document.createElement('button');
   closeB.textContent='✕';
-  closeB.style.cssText='background:rgba(255,255,255,.2);border:none;color:white;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px';
+  closeB.style.cssText='background:rgba(255,255,255,.2);border:none;color:white;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:14px';
   closeB.onclick=()=>document.body.removeChild(modal);
   hdr.appendChild(closeB);
   box.appendChild(hdr);
@@ -2816,15 +2987,15 @@ function ponEditOLT(){
   // OLT identity fields
   const identSec=document.createElement('div');
   identSec.style.cssText='background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px';
-  identSec.innerHTML=`<div style="font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#0c4a6e;margin-bottom:10px">Identidad OLT</div>`;
+  identSec.innerHTML=`<div style="font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#0c4a6e;margin-bottom:10px">Identidad OLT</div>`;
   function identRow(label, val, onchange){
     const d=document.createElement('div');
     d.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:7px';
     const l=document.createElement('span');
-    l.style.cssText='font-family:var(--mono);font-size:8.5px;color:#374151;width:80px;flex-shrink:0';
+    l.style.cssText='font-family:var(--mono);font-size:10.5px;color:#374151;width:80px;flex-shrink:0';
     l.textContent=label;
     const i=document.createElement('input');
-    i.value=val; i.style.cssText='font-family:var(--mono);font-size:9.5px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;flex:1;outline:none';
+    i.value=val; i.style.cssText='font-family:var(--mono);font-size:11.5px;padding:4px 8px;border:1.5px solid #d1d5db;border-radius:5px;flex:1;outline:none';
     i.oninput=()=>onchange(i.value);
     i.onfocus=()=>i.style.borderColor='#0284c7';
     i.onblur=()=>i.style.borderColor='#d1d5db';
@@ -2838,7 +3009,7 @@ function ponEditOLT(){
 
   // Per-port cable config
   const portSec=document.createElement('div');
-  portSec.innerHTML=`<div style="font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#374151;margin-bottom:8px">Cables y pelos por puerto PON</div>`;
+  portSec.innerHTML=`<div style="font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#374151;margin-bottom:8px">Cables y pelos por puerto PON</div>`;
 
   net.olt.ports.forEach(p=>{
     const sp=p.spId?net.splitters.find(s=>s.id===p.spId):null;
@@ -2847,7 +3018,7 @@ function ponEditOLT(){
 
     // Port label
     const portLbl=document.createElement('span');
-    portLbl.style.cssText='font-family:var(--mono);font-size:9px;font-weight:700;color:#0c4a6e;min-width:80px;flex-shrink:0';
+    portLbl.style.cssText='font-family:var(--mono);font-size:11px;font-weight:700;color:#0c4a6e;min-width:80px;flex-shrink:0';
     portLbl.textContent=`0/${net.olt.shelf}/${net.olt.slot}/${p.num}`;
 
     // Fiber color preview
@@ -2859,14 +3030,14 @@ function ponEditOLT(){
     // Cable name input
     const cableI=document.createElement('input');
     cableI.value=p.cableName||''; cableI.placeholder='Cable (ej: BVST6-FH53)';
-    cableI.style.cssText='font-family:var(--mono);font-size:9px;padding:3px 7px;border:1.5px solid #d1d5db;border-radius:4px;width:150px;outline:none';
+    cableI.style.cssText='font-family:var(--mono);font-size:11px;padding:3px 7px;border:1.5px solid #d1d5db;border-radius:4px;width:150px;outline:none';
     cableI.oninput=()=>{ p.cableName=cableI.value; };
 
     // Pelo number input
     const hairI=document.createElement('input');
     hairI.type='number'; hairI.value=p.cableHair??''; hairI.placeholder='Pelo #';
     hairI.min=1; hairI.max=999;
-    hairI.style.cssText='font-family:var(--mono);font-size:9px;padding:3px 7px;border:1.5px solid #d1d5db;border-radius:4px;width:70px;outline:none';
+    hairI.style.cssText='font-family:var(--mono);font-size:11px;padding:3px 7px;border:1.5px solid #d1d5db;border-radius:4px;width:70px;outline:none';
     hairI.oninput=()=>{
       const v=parseInt(hairI.value);
       p.cableHair = hairI.value===''||isNaN(v) ? null : v;
@@ -2875,14 +3046,26 @@ function ponEditOLT(){
 
     // SP target
     const spTag=document.createElement('span');
-    spTag.style.cssText='font-family:var(--mono);font-size:8px;color:#059669';
+    spTag.style.cssText='font-family:var(--mono);font-size:10px;color:#059669';
     spTag.textContent=sp?`→ ${sp.name}`:'→ sin SP';
+
+    // Clear port button
+    const clearB=document.createElement('button');
+    clearB.textContent='✕ Limpiar';
+    clearB.style.cssText='font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:pointer;margin-left:auto';
+    clearB.onclick=()=>{
+      p.cableName=''; p.cableHair=null; p.spId=null;
+      cableI.value=''; hairI.value='';
+      refreshDot();
+      spTag.textContent='→ sin SP';
+    };
 
     portDiv.appendChild(portLbl);
     portDiv.appendChild(dotWrap);
     portDiv.appendChild(cableI);
     portDiv.appendChild(hairI);
     portDiv.appendChild(spTag);
+    portDiv.appendChild(clearB);
     portSec.appendChild(portDiv);
   });
   body.appendChild(portSec);
@@ -2892,7 +3075,7 @@ function ponEditOLT(){
     document.body.removeChild(modal);
     ponRender();
   });
-  saveB.style.cssText+='width:100%;padding:8px;font-size:10px;margin-top:4px';
+  saveB.style.cssText+='width:100%;padding:8px;font-size:12px;margin-top:4px';
   body.appendChild(saveB);
 
   box.appendChild(body);
