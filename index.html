@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -241,6 +240,7 @@ let currentTopo = 'desbal';
 const STATE = {
   desbal: {
     olt: 4.0,
+    hubOutPower: null,
     brOn: {a:true, b:true},
     indep: false,
     r1a:70, r2a:70, r3a:50,
@@ -267,6 +267,7 @@ const STATE = {
 
   hubpreco: {
     olt: 4.0,
+    hubOutPower: null,
     lenHub: {c1:80,c2:80,c3:80,c4:80,c5:80,c6:80,c7:80,c8:80},
     xdropHub: {c1:0,c2:0,c3:0,c4:0,c5:0,c6:0,c7:0,c8:0},
     lh8:10.5, lh8e:0.0,
@@ -406,7 +407,11 @@ function calcDesbal(){
   function tl(m,xtra){ return trunkLoss(m,xtra,'desbal'); }
 
   T.pre_hub = F['cut-olt'] ? INF : s.olt;
-  const hub = T.pre_hub<=INF+5 ? INF : T.pre_hub - hubLoss;
+  const hubCalc = T.pre_hub<=INF+5 ? INF : T.pre_hub - hubLoss;
+  const hub = (s.hubOutPower!==null&&s.hubOutPower!==undefined)
+    ? (F['cut-olt'] ? INF : s.hubOutPower)
+    : hubCalc;
+  T.hub=hub; T.hubCalc=hubCalc;
 
   function branch(br){
     const on = s.brOn[br];
@@ -452,7 +457,12 @@ function calcHubPreco(){
   const T = {olt:s.olt};
   T.pre_hub = F['cut-olt'] ? INF : s.olt;
   const hubLoss = (s.lh8+s.lh8e) + (F['sp-hub8']||0);
-  const hub = T.pre_hub<=INF+5 ? INF : T.pre_hub - hubLoss;
+  const hubCalc = T.pre_hub<=INF+5 ? INF : T.pre_hub - hubLoss;
+  // hubOutPower: null = auto (calculated), number = manual override
+  const hub = (s.hubOutPower !== null && s.hubOutPower !== undefined)
+    ? (F['cut-olt'] ? INF : s.hubOutPower)
+    : hubCalc;
+  T.hub = hub; T.hubCalc = hubCalc;
 
   for(let i=1;i<=8;i++){
     const ck = 'c'+i;
@@ -522,8 +532,9 @@ function drawOLT(svg,x,cy,v){
 }
 
 // Generic splitter box (Hub/Bandeja)
-function drawSplitterBox(svg,x,cy,title,subtitle,lossStr,portCount,portPositions,faultActive){
-  const H=portCount<=2?60:72, W=HUB_W+(portCount>2?10:0);
+function drawSplitterBox(svg,x,cy,title,subtitle,lossStr,portCount,portPositions,faultActive,outPowerInfo){
+  const extraH = outPowerInfo ? 38 : 0;
+  const H=(portCount<=2?60:72)+extraH, W=HUB_W+(portCount>2?10:0);
   const g=mkEl('g',{filter:'url(#sh)'});
   const brd=faultActive?'#fb923c':'#d1dce8';
   const bg=faultActive?'#fff7ed':'white';
@@ -532,9 +543,25 @@ function drawSplitterBox(svg,x,cy,title,subtitle,lossStr,portCount,portPositions
   g.appendChild(mkTxt(subtitle,{x:x+W/2,y:cy-H/2+19,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#96abbe'}));
   g.appendChild(mkEl('line',{x1:x+4,y1:cy-H/2+22,x2:x+W-4,y2:cy-H/2+22,stroke:'#e2e8f0','stroke-width':1}));
   g.appendChild(mkTxt('Atten.',{x:x+5,y:cy-H/2+33,'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#96abbe'}));
-  g.appendChild(mkTxt(lossStr,{x:x+W-4,y:cy-H/2+33,'text-anchor':'end','font-family':"'IBM Plex Mono'",'font-size':9,'font-weight':700,fill:faultActive?'#c2410c':'#1d4ed8'}));
+  g.appendChild(mkTxt(lossStr,{x:x+W-4,y:cy-H/2+33,'text-anchor':'end','font-family':"'IBM Plex Mono'",'font-size':9,'font-weight':700,fill:faultActive?'#c2410c':'#94a3b8'}));
   if(faultActive){
-    g.appendChild(mkTxt('⚠ falla',{x:x+W/2,y:cy-H/2+44,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':6,fill:'#fb923c'}));
+    g.appendChild(mkTxt('⚠ falla',{x:x+W/2,y:cy-H/2+(outPowerInfo?44:44),'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':6,fill:'#fb923c'}));
+  }
+  // Output power section
+  if(outPowerInfo){
+    const baseY = cy-H/2+44;
+    g.appendChild(mkEl('line',{x1:x+4,y1:baseY,x2:x+W-4,y2:baseY,stroke:'#e2e8f0','stroke-width':1}));
+    g.appendChild(mkTxt('Salida HUB',{x:x+5,y:baseY+11,'font-family':"'IBM Plex Mono'",'font-size':6.5,fill:'#96abbe'}));
+    const outTxt = outPowerInfo.val===null||outPowerInfo.val===undefined ? '—'
+      : outPowerInfo.val<=INF+5 ? 'SIN SEÑAL'
+      : (fmt(outPowerInfo.val)||'—')+' dBm';
+    const outColor = outPowerInfo.val===null||outPowerInfo.val===undefined ? '#94a3b8'
+      : outPowerInfo.val<=INF+5 ? '#dc2626'
+      : valC(outPowerInfo.val);
+    g.appendChild(mkTxt(outTxt,{x:x+W-4,y:baseY+11,'text-anchor':'end','font-family':"'IBM Plex Mono'",'font-size':10,'font-weight':700,fill:outColor}));
+    const badgeTxt = outPowerInfo.isManual ? '📌 MANUAL' : '⚙ AUTO';
+    const badgeC   = outPowerInfo.isManual ? '#f59e0b'   : '#94a3b8';
+    g.appendChild(mkTxt(badgeTxt,{x:x+W/2,y:baseY+26,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':7,'font-weight':700,fill:badgeC}));
   }
   // port dots
   portPositions.forEach(py=>{
@@ -562,25 +589,25 @@ function drawCTO(svg,x,y,ctoKey,inV,onuV,topo,showPass,passV,tapV,ratio){
     g.appendChild(mkTxt(val,{x:CTO_W-10,y:yTxt,'text-anchor':'end','font-family':"'IBM Plex Mono'",'font-size':vSize,'font-weight':700,fill:vColor}));
   }
 
-  const inF=fmt(inV); const inTxt=inF?inF+' dBm':'CORTE';
+  const inF=fmt(inV); const inTxt=inF?inF+' dBm':'SIN SEÑAL';
   if(showPass && ratio!==null){
     const p=Math.round(ratio), t=Math.round(100-ratio);
     const pF=fmt(passV), tF=fmt(tapV), oF=fmt(onuV);
     row('IN', inTxt, 32, 44, valC(inV), 10);
-    row(`${p}% →`, pF?pF+' dBm':'CORTE', 48, 60, valC(passV), 10);
+    row(`${p}% →`, pF?pF+' dBm':'SIN SEÑAL', 48, 60, valC(passV), 10);
     svg.appendChild(mkEl('circle',{cx:x+CTO_W,cy:y+54,r:4,fill:'white',stroke:lineC(passV),'stroke-width':2}));
-    row(`${t}% ↓`, tF?tF+' dBm':'CORTE', 64, 76, valC(tapV), 10);
+    row(`${t}% ↓`, tF?tF+' dBm':'SIN SEÑAL', 64, 76, valC(tapV), 10);
     g.appendChild(mkEl('line',{x1:CTO_W/2,y1:80,x2:CTO_W/2,y2:85,stroke:'#cbd5e1','stroke-width':1,'stroke-dasharray':'2,2'}));
     g.appendChild(mkEl('rect',{x:8,y:85,width:CTO_W-16,height:13,rx:4,fill:'#f1f5f9',stroke:'#cbd5e1','stroke-width':1}));
     g.appendChild(mkTxt(`SP 1×8  −${s8l} dB`,{x:CTO_W/2,y:95,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':8,fill:'#475569'}));
-    row('Puertos', oF?oF+' dBm':'CORTE', 101, 113, valC(onuV), 12);
+    row('Puertos', oF?oF+' dBm':'SIN SEÑAL', 101, 113, valC(onuV), 12);
   } else {
     row('IN', inTxt, 32, 44, valC(inV), 10);
     g.appendChild(mkEl('line',{x1:CTO_W/2,y1:48,x2:CTO_W/2,y2:53,stroke:'#cbd5e1','stroke-width':1,'stroke-dasharray':'2,2'}));
     g.appendChild(mkEl('rect',{x:8,y:53,width:CTO_W-16,height:13,rx:4,fill:'#f1f5f9',stroke:'#cbd5e1','stroke-width':1}));
     g.appendChild(mkTxt(`SP 1×8  −${s8l} dB`,{x:CTO_W/2,y:64,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':8,fill:'#475569'}));
     const oF=fmt(onuV);
-    row('Puertos', oF?oF+' dBm':'CORTE', 70, 84, valC(onuV), 12);
+    row('Puertos', oF?oF+' dBm':'SIN SEÑAL', 70, 84, valC(onuV), 12);
     svg.appendChild(mkEl('circle',{cx:x,cy:y+CTO_H/2,r:4,fill:'white',stroke:lineC(inV),'stroke-width':2}));
   }
   g.setAttribute('transform',`translate(${x},${y})`);
@@ -721,8 +748,9 @@ function buildDesbal(T){
   const hubLoss=(s.lh+s.lhe+(s.F['sp-hub']||0)).toFixed(1);
   const hubFault=(s.F['sp-hub']||0)>0;
   const hubX=PAD+OLT_W+14;
+  const desbalHubOut={val:T.hub, isManual:s.hubOutPower!==null&&s.hubOutPower!==undefined};
   drawSplitterBox(svg,hubX,oltCY,'HUB','SP 1×2  50/50',`−${hubLoss} dB`,2,
-    activeBr.length===2?[oltCY-10,oltCY+10]:[oltCY],hubFault);
+    activeBr.length===2?[oltCY-10,oltCY+10]:[oltCY],hubFault,desbalHubOut);
 
   drawWire(svg,PAD+OLT_W,oltCY,hubX,oltCY,T.pre_hub,3,true);
 
@@ -748,7 +776,7 @@ function buildDesbal(T){
         drawWire(svg,ctoX+CTO_W,brCY,nextCX,brCY,nextIn,1.8);
         const mid=(ctoX+CTO_W+nextCX)/2;
         const fv=fmt(nextIn);
-        svg.appendChild(mkTxt(fv?fv+' dBm':'CORTE',{x:mid,y:brCY-5,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':7.5,'font-weight':500,fill:valC(nextIn)}));
+        svg.appendChild(mkTxt(fv?fv+' dBm':'SIN SEÑAL',{x:mid,y:brCY-5,'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':7.5,'font-weight':500,fill:valC(nextIn)}));
       }
       drawCTO(svg,ctoX,rowY,ck,inV,onuV,'desbal',!isLast&&ratio!==null,passV,tapV,ratio);
       drawONUsBelow(svg,ctoX,rowY,ck,onuV,'desbal',colX,colW);
@@ -778,7 +806,7 @@ function buildVertical(T, topo){
   const OLT_CY     = TOP_PAD+30;          // OLT center Y
   const TRUNK_H    = 40;                   // vertical trunk OLT→splitter
   const SP_CY      = OLT_CY+TRUNK_H;      // splitter center Y
-  const SP_H       = 76;                   // splitter box height
+  const SP_H       = isFus ? 76 : 106;         // hubpreco taller to show output power
   const SP_BOT     = SP_CY+SP_H/2;        // bottom of splitter box
   const DROP_V     = 50;                   // vertical drop segment below splitter
   const JUNCTION_Y = SP_BOT+DROP_V;       // Y where all drops split
@@ -884,7 +912,24 @@ function buildVertical(T, topo){
   bx.appendChild(mkTxt('Atenuación',{x:SP_X+7,y:SP_CY+8,'font-family':"'IBM Plex Mono'",'font-size':7,fill:'#6b7280'}));
   bx.appendChild(mkTxt(`−${boxLoss} dB`,{x:SP_X+SP_W-6,y:SP_CY+8,'text-anchor':'end',
     'font-family':"'IBM Plex Mono'",'font-size':10,'font-weight':700,fill:boxFault?'#c2410c':titC}));
-  if(boxFault) bx.appendChild(mkTxt('⚠ falla activa',{x:SP_X+SP_W/2,y:SP_CY+22,
+  // HUB Preco: show output power with auto/manual indicator
+  if(!isFus){
+    const isManual = s.hubOutPower!==null&&s.hubOutPower!==undefined;
+    const outPwrTxt = outV<=INF+5 ? 'SIN SEÑAL' : (fmt(outV)||'—')+' dBm';
+    const outPwrColor = outV<=INF+5 ? '#dc2626' : valC(outV);
+    bx.appendChild(mkEl('line',{x1:SP_X+6,y1:SP_CY+14,x2:SP_X+SP_W-6,y2:SP_CY+14,stroke:brdC,opacity:.2,'stroke-width':1}));
+    bx.appendChild(mkTxt('Salida HUB',{x:SP_X+7,y:SP_CY+25,'font-family':"'IBM Plex Mono'",'font-size':7,fill:'#6b7280'}));
+    bx.appendChild(mkTxt(outPwrTxt,{
+      x:SP_X+SP_W-6,y:SP_CY+25,'text-anchor':'end',
+      'font-family':"'IBM Plex Mono'",'font-size':11,'font-weight':700,
+      fill:outPwrColor}));
+    // Manual badge
+    const badgeTxt = isManual ? '📌 MANUAL' : '⚙ AUTO';
+    const badgeC   = isManual ? '#f59e0b'   : '#94a3b8';
+    bx.appendChild(mkTxt(badgeTxt,{x:SP_X+SP_W/2,y:SP_CY+37,'text-anchor':'middle',
+      'font-family':"'IBM Plex Mono'",'font-size':7,'font-weight':700,fill:badgeC}));
+  }
+  if(boxFault) bx.appendChild(mkTxt('⚠ falla activa',{x:SP_X+SP_W/2,y:isFus?SP_CY+22:SP_CY+49,
     'text-anchor':'middle','font-family':"'IBM Plex Mono'",'font-size':7,fill:'#fb923c'}));
   // bottom port dot
   bx.appendChild(mkEl('circle',{cx:SP_X+SP_W/2,cy:SP_CY+SP_H/2,r:4,fill:'white',stroke:brdC,'stroke-width':2}));
@@ -928,7 +973,7 @@ function buildVertical(T, topo){
 
     // Power label beside the drop line (right side, midpoint)
     const dropMidY = (JUNCTION_Y+ctoTopY)/2;
-    svg.appendChild(mkTxt(fmt(inV)?fmt(inV)+' dBm':'CORTE',{
+    svg.appendChild(mkTxt(fmt(inV)?fmt(inV)+' dBm':'SIN SEÑAL',{
       x:ctoCenterX+6, y:dropMidY,
       'font-family':"'IBM Plex Mono'",'font-size':7.5,'font-weight':600,
       fill:valC(inV)}));
@@ -1087,6 +1132,33 @@ function buildCfgPanel(tp){
         <div class="pr"><span class="pl">Potencia TX (dBm)</span>
           <input class="pi" type="number" id="cfg-olt" value="${s.olt}" step="0.5" min="-5" max="7" oninput="S().olt=parseFloat(this.value)||4;recalc()"></div>
       </div>
+      <div class="pc" style="border:2px solid #f59e0b;background:#fffbeb">
+        <div class="pct" style="color:#b45309">⚡ Salida HUB SP 1×2</div>
+        <div class="pr" style="margin-bottom:6px">
+          <span class="pl" style="color:#92400e;font-weight:700">Modo</span>
+          <select class="ps" onchange="
+            var v=this.value;
+            if(v==='auto'){ S().hubOutPower=null; }
+            else { var n=parseFloat(document.getElementById('hub-out-val-d').value); S().hubOutPower=isNaN(n)?0:n; }
+            document.getElementById('hub-out-row-d').style.opacity=v==='auto'?'0.4':'1';
+            document.getElementById('hub-out-row-d').style.pointerEvents=v==='auto'?'none':'auto';
+            recalc();">
+            <option value="auto" ${s.hubOutPower===null||s.hubOutPower===undefined?'selected':''}>Auto (calculado)</option>
+            <option value="manual" ${s.hubOutPower!==null&&s.hubOutPower!==undefined?'selected':''}>Manual (medido)</option>
+          </select>
+        </div>
+        <div class="pr" id="hub-out-row-d" style="opacity:${s.hubOutPower!==null&&s.hubOutPower!==undefined?'1':'0.4'};pointer-events:${s.hubOutPower!==null&&s.hubOutPower!==undefined?'auto':'none'}">
+          <span class="pl" style="color:#92400e;font-weight:700">Potencia salida (dBm)</span>
+          <input class="pi" id="hub-out-val-d" type="number" step="0.5" min="-30" max="7"
+            value="${s.hubOutPower!==null&&s.hubOutPower!==undefined?s.hubOutPower:''}"
+            placeholder="ej: −3.5"
+            oninput="if(S().hubOutPower!==null&&S().hubOutPower!==undefined){ var n=parseFloat(this.value); if(!isNaN(n)){S().hubOutPower=n;recalc();} }">
+        </div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:#78716c;margin-top:4px;line-height:1.5">
+          En modo <b>Manual</b> ingresás la potencia<br>medida en la salida del HUB con OTDR/OPM.<br>
+          El recálculo usa ese valor directo.
+        </div>
+      </div>
       <div class="pc">
         <div class="pct">Ramas</div>
         <div class="pr"><span class="pl">Rama A activa</span>
@@ -1100,13 +1172,13 @@ function buildCfgPanel(tp){
         <div class="pct">Ratio SP 1×2 <span id="lbl-ratio-a" style="font-size:9px;color:var(--txt3);text-transform:none;letter-spacing:0;font-weight:400">${s.indep?'Rama A':'ambas ramas'}</span></div>
         <div class="pr"><span class="pl">CTO 1 pass %</span><input class="pi" type="number" id="r1a" value="${s.r1a}" step="5" min="50" max="90" oninput="S().r1a=parseFloat(this.value)||70;syncR(1);recalc()"></div>
         <div class="pr"><span class="pl">CTO 2 pass %</span><input class="pi" type="number" id="r2a" value="${s.r2a}" step="5" min="50" max="90" oninput="S().r2a=parseFloat(this.value)||70;syncR(2);recalc()"></div>
-        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3a" value="${s.r3a}" step="5" min="50" max="90" oninput="S().r3a=parseFloat(this.value)||50;syncR(3);recalc()"></div>
+        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3a" value="${s.r3a}" step="5" min="50" max="90" oninput="S().r3a=parseFloat(this.value)||70;syncR(3);recalc()"></div>
       </div>
       <div class="pc" id="pc-rb" style="display:${s.indep?'':'none'};min-width:185px">
         <div class="pct">Ratio SP 1×2 — Rama B</div>
         <div class="pr"><span class="pl">CTO 1 pass %</span><input class="pi" type="number" id="r1b" value="${s.r1b}" step="5" min="50" max="90" oninput="S().r1b=parseFloat(this.value)||70;recalc()"></div>
         <div class="pr"><span class="pl">CTO 2 pass %</span><input class="pi" type="number" id="r2b" value="${s.r2b}" step="5" min="50" max="90" oninput="S().r2b=parseFloat(this.value)||70;recalc()"></div>
-        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3b" value="${s.r3b}" step="5" min="50" max="90" oninput="S().r3b=parseFloat(this.value)||50;recalc()"></div>
+        <div class="pr"><span class="pl">CTO 3 pass %</span><input class="pi" type="number" id="r3b" value="${s.r3b}" step="5" min="50" max="90" oninput="S().r3b=parseFloat(this.value)||70;recalc()"></div>
       </div>
       <div class="pc" style="min-width:185px">
         <div class="pct">Fibra Rama A (m)</div>
@@ -1130,6 +1202,33 @@ function buildCfgPanel(tp){
         <div class="pct">OLT</div>
         <div class="pr"><span class="pl">Potencia TX (dBm)</span>
           <input class="pi" type="number" id="cfg-olt" value="${s.olt}" step="0.5" min="-5" max="7" oninput="S().olt=parseFloat(this.value)||4;recalc()"></div>
+      </div>
+      <div class="pc" style="border:2px solid #f59e0b;background:#fffbeb">
+        <div class="pct" style="color:#b45309">⚡ Salida HUB Preco</div>
+        <div class="pr" style="margin-bottom:6px">
+          <span class="pl" style="color:#92400e;font-weight:700">Modo</span>
+          <select class="ps" onchange="
+            var v=this.value;
+            if(v==='auto'){ S().hubOutPower=null; }
+            else { var n=parseFloat(document.getElementById('hub-out-val').value); S().hubOutPower=isNaN(n)?0:n; }
+            document.getElementById('hub-out-row').style.opacity=v==='auto'?'0.4':'1';
+            document.getElementById('hub-out-row').style.pointerEvents=v==='auto'?'none':'auto';
+            recalc();">
+            <option value="auto" ${s.hubOutPower===null||s.hubOutPower===undefined?'selected':''}>Auto (calculado)</option>
+            <option value="manual" ${s.hubOutPower!==null&&s.hubOutPower!==undefined?'selected':''}>Manual (medido)</option>
+          </select>
+        </div>
+        <div class="pr" id="hub-out-row" style="opacity:${s.hubOutPower!==null&&s.hubOutPower!==undefined?'1':'0.4'};pointer-events:${s.hubOutPower!==null&&s.hubOutPower!==undefined?'auto':'none'}">
+          <span class="pl" style="color:#92400e;font-weight:700">Potencia salida (dBm)</span>
+          <input class="pi" id="hub-out-val" type="number" step="0.5" min="-30" max="7"
+            value="${s.hubOutPower!==null&&s.hubOutPower!==undefined?s.hubOutPower:''}"
+            placeholder="ej: -3.5"
+            oninput="if(S().hubOutPower!==null&&S().hubOutPower!==undefined){ var n=parseFloat(this.value); if(!isNaN(n)){S().hubOutPower=n;recalc();} }">
+        </div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:#78716c;margin-top:4px;line-height:1.5">
+          En modo <b>Manual</b> ingresás la potencia<br>medida en la salida del HUB con OTDR/OPM.<br>
+          El recálculo usa ese valor directo.
+        </div>
       </div>
       <div class="pc" style="min-width:185px">
         <div class="pct">Fibra Hub → CTOs (m)</div>
@@ -1449,7 +1548,7 @@ function doMeasure(){
   addLog(`OLT TX: <span style="color:${valC(T.olt)}">${fmt(T.olt)} dBm</span>`);
   s.ctoKeys.forEach(ck=>{
     const iv=T[ck+'_in'], ov=T[ck+'_onu'];
-    addLog(`<span class="lts">CTO ${ck.toUpperCase()} IN: </span><span style="color:${valC(iv)}">${fmt(iv)||'CORTE'} dBm</span>  <span class="lts">→ ONUs: </span><span style="color:${valC(ov)}">${fmt(ov)||'CORTE'} dBm</span>`);
+    addLog(`<span class="lts">CTO ${ck.toUpperCase()} IN: </span><span style="color:${valC(iv)}">${fmt(iv)?fmt(iv)+' dBm':'SIN SEÑAL'}</span>  <span class="lts">→ ONUs: </span><span style="color:${valC(ov)}">${fmt(ov)?fmt(ov)+' dBm':'SIN SEÑAL'}</span>`);
   });
   switchPanelTab('log');
 }
@@ -3134,8 +3233,5 @@ document.getElementById('fp-close-btn').onclick=()=>closeFiberPlanner();
 document.getElementById('fp-add-cable').onclick=()=>addCable();
 document.getElementById('pon-close-btn').onclick=()=>closePON();
 </script>
- 
 </body>
-
-
 </html>
