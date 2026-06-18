@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Simulador FTTH</title>
+<title>Simulador FTTH v7</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -3219,7 +3220,527 @@ function closePON(){
   document.getElementById('pon-modal').style.display='none';
 }
 // ════════════════════════════════════════════════════════
-buildPanels();
+// FIELD TECHNICIAN VIEW — vertical tree, mobile-first
+// ════════════════════════════════════════════════════════
+
+const FIELD = {
+  patchLoss: 0.3,   // dB per connector, x2 per measurement
+  measured: {},     // pointId -> raw dBm entered by tech
+  activeBr: 'a',    // which branch showing
+  len: {
+    a:{hc1:null,c1c2:null,c2c3:null,c3c4:null},
+    b:{hc1:null,c1c2:null,c2c3:null,c3c4:null},
+  },
+};
+
+function fieldLenGet(br,seg){
+  return FIELD.len[br][seg]!==null?FIELD.len[br][seg]:STATE.desbal.len[br][seg];
+}
+
+function fieldCalc(){
+  const s=STATE.desbal;
+  const sp18=s.ls8+s.ls8e;
+  const sp2exc=s.ls2e||0.2;
+  function spP(r){ return -(10*Math.log10(r/100))+sp2exc; }
+  function spT(r){ return -(10*Math.log10((100-r)/100))+sp2exc; }
+  // In field calc: use fiber loss only between points.
+  // Connectors are already accounted for in the measurement correction (patchcord).
+  function tl(br,seg){ return fiberLoss(fieldLenGet(br,seg),'desbal'); }
+
+  // Hub base: if tech measured at hub, use that directly as the hub output power
+  // (patchcord correction is applied in fieldDeltaBadge, NOT here — 
+  //  the hub measured value is used as-is for propagation since it represents
+  //  what the tech found at that point after correcting for their patchcord)
+  const mHub=FIELD.measured['hub'];
+  // Hub is measured directly at the port — no patchcord correction needed
+  const hub = mHub!==undefined ? mHub
+    : s.hubOutPower!==null&&s.hubOutPower!==undefined ? s.hubOutPower
+    : (s.olt-(s.lh+s.lhe));
+  const T={hub};
+
+  ['a','b'].forEach(br=>{
+    const on=s.brOn[br];
+    const rr=s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
+    if(!on){[1,2,3,4].forEach(i=>{T[`${br}${i}_in`]=INF;T[`${br}${i}_pass`]=INF;T[`${br}${i}_tap`]=INF;T[`${br}${i}_onu`]=INF;});return;}
+    T[`${br}1_in`]  =hub<=INF+5?INF:hub-tl(br,'hc1');
+    const i1=T[`${br}1_in`];
+    T[`${br}1_pass`]=i1<=INF+5?INF:i1-spP(rr[0]);
+    T[`${br}1_tap`] =i1<=INF+5?INF:i1-spT(rr[0]);
+    T[`${br}1_onu`] =T[`${br}1_tap`]<=INF+5?INF:T[`${br}1_tap`]-sp18;
+
+    T[`${br}2_in`]  =T[`${br}1_pass`]<=INF+5?INF:T[`${br}1_pass`]-tl(br,'c1c2');
+    const i2=T[`${br}2_in`];
+    T[`${br}2_pass`]=i2<=INF+5?INF:i2-spP(rr[1]);
+    T[`${br}2_tap`] =i2<=INF+5?INF:i2-spT(rr[1]);
+    T[`${br}2_onu`] =T[`${br}2_tap`]<=INF+5?INF:T[`${br}2_tap`]-sp18;
+
+    T[`${br}3_in`]  =T[`${br}2_pass`]<=INF+5?INF:T[`${br}2_pass`]-tl(br,'c2c3');
+    const i3=T[`${br}3_in`];
+    T[`${br}3_pass`]=i3<=INF+5?INF:i3-spP(rr[2]);
+    T[`${br}3_tap`] =i3<=INF+5?INF:i3-spT(rr[2]);
+    T[`${br}3_onu`] =T[`${br}3_tap`]<=INF+5?INF:T[`${br}3_tap`]-sp18;
+
+    T[`${br}4_in`]  =T[`${br}3_pass`]<=INF+5?INF:T[`${br}3_pass`]-tl(br,'c3c4');
+    T[`${br}4_pass`]=INF;T[`${br}4_tap`]=INF;
+    T[`${br}4_onu`] =T[`${br}4_in`]<=INF+5?INF:T[`${br}4_in`]-sp18;
+  });
+  return T;
+}
+
+function fieldFmtV(v){
+  if(v===null||v===undefined||v<=INF+5) return 'SIN SEÑAL';
+  return (v>=0?'+':'')+v.toFixed(1)+' dBm';
+}
+function fieldVColor(v){
+  if(v===null||v===undefined||v<=INF+5) return '#dc2626';
+  return valC(v);
+}
+function fieldDeltaBadge(expected, rawMeasured){
+  if(rawMeasured===undefined||rawMeasured===null) return null;
+  if(expected===null||expected<=INF+5) return null;
+  const corrected=rawMeasured+2*FIELD.patchLoss;
+  const delta=corrected-expected;
+  const abs=Math.abs(delta);
+  const sign=delta>=0?'+':'';
+  if(abs<=1.0)  return {txt:`${sign}${delta.toFixed(1)} dB`,color:'#15803d',bg:'#dcfce7'};
+  if(abs<=2.5)  return {txt:`${sign}${delta.toFixed(1)} dB`,color:'#b45309',bg:'#fef3c7'};
+  return            {txt:`${sign}${delta.toFixed(1)} dB`,color:'#dc2626',bg:'#fee2e2'};
+}
+// Hub is measured directly at the port — no patchcord correction
+function fieldDeltaBadgeNoPatch(expected, rawMeasured){
+  if(rawMeasured===undefined||rawMeasured===null) return null;
+  if(expected===null||expected<=INF+5) return null;
+  const delta=rawMeasured-expected;
+  const abs=Math.abs(delta);
+  const sign=delta>=0?'+':'';
+  if(abs<=1.0)  return {txt:`${sign}${delta.toFixed(1)} dB`,color:'#15803d',bg:'#dcfce7'};
+  if(abs<=2.5)  return {txt:`${sign}${delta.toFixed(1)} dB`,color:'#b45309',bg:'#fef3c7'};
+  return            {txt:`${sign}${delta.toFixed(1)} dB`,color:'#dc2626',bg:'#fee2e2'};
+}
+
+// ── Active point for modal input ──
+let fieldActivePoint=null;
+
+function fieldOpenInput(pointId, label, expectedV){
+  fieldActivePoint={pointId,label,expectedV};
+  const modal=document.getElementById('field-input-modal');
+  const inp=document.getElementById('field-input-val');
+  const expEl=document.getElementById('field-input-exp');
+  const lblEl=document.getElementById('field-input-lbl');
+  lblEl.textContent=label;
+  expEl.textContent='Esperado: '+fieldFmtV(expectedV);
+  inp.value=FIELD.measured[pointId]!==undefined?FIELD.measured[pointId]:'';
+  modal.style.display='flex';
+  setTimeout(()=>inp.focus(),100);
+}
+
+function fieldCloseInput(){
+  document.getElementById('field-input-modal').style.display='none';
+  fieldActivePoint=null;
+}
+
+function fieldSaveInput(){
+  if(!fieldActivePoint) return;
+  const inp=document.getElementById('field-input-val');
+  const n=parseFloat(inp.value);
+  if(!isNaN(n)) FIELD.measured[fieldActivePoint.pointId]=n;
+  else delete FIELD.measured[fieldActivePoint.pointId];
+  fieldCloseInput();
+  renderFieldView();
+}
+
+function fieldClearInput(){
+  if(!fieldActivePoint) return;
+  delete FIELD.measured[fieldActivePoint.pointId];
+  document.getElementById('field-input-val').value='';
+  fieldCloseInput();
+  renderFieldView();
+}
+
+function renderFieldView(){
+  const container=document.getElementById('field-tree');
+  if(!container) return;
+  container.innerHTML='';
+  const T=fieldCalc();
+  const s=STATE.desbal;
+  const br=FIELD.activeBr;
+  const rr=s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
+
+  // ── node builder ──
+  function makeNode(opts){
+    // opts: {id, title, subtitle, expectedV, color, width, noPatch}
+    const raw=FIELD.measured[opts.id];
+    // noPatch: hub is measured directly, no patchcord correction needed
+    const badge=opts.noPatch
+      ? fieldDeltaBadgeNoPatch(opts.expectedV, raw!==undefined?raw:null)
+      : fieldDeltaBadge(opts.expectedV, raw!==undefined?raw:null);
+    const hasMeasured=raw!==undefined;
+
+    const node=document.createElement('div');
+    node.style.cssText=`background:white;border:2.5px solid ${opts.color};border-radius:14px;
+      padding:12px 14px;width:${opts.width||220}px;cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);position:relative;
+      transition:transform .1s;user-select:none`;
+    node.onclick=()=>fieldOpenInput(opts.id, opts.title+(opts.subtitle?' — '+opts.subtitle:''), opts.expectedV);
+
+    // Top: title + tap indicator
+    const topRow=document.createElement('div');
+    topRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:6px';
+    const titleEl=document.createElement('div');
+    titleEl.style.cssText=`font-family:var(--sans);font-size:13px;font-weight:700;color:${opts.color};flex:1`;
+    titleEl.textContent=opts.title;
+    const tapHint=document.createElement('div');
+    tapHint.style.cssText='font-family:var(--mono);font-size:9px;color:#cbd5e1';
+    tapHint.textContent='TAP →';
+    topRow.appendChild(titleEl); topRow.appendChild(tapHint);
+    node.appendChild(topRow);
+
+    if(opts.subtitle){
+      const sub=document.createElement('div');
+      sub.style.cssText='font-family:var(--mono);font-size:9px;color:#94a3b8;margin-bottom:6px';
+      sub.textContent=opts.subtitle;
+      node.appendChild(sub);
+    }
+
+    // Expected value
+    const expRow=document.createElement('div');
+    expRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:4px';
+    const expLbl=document.createElement('span');
+    expLbl.style.cssText='font-family:var(--mono);font-size:9.5px;color:#94a3b8';
+    expLbl.textContent='Esperado';
+    const expVal=document.createElement('span');
+    expVal.style.cssText=`font-family:var(--mono);font-size:12px;font-weight:700;color:${fieldVColor(opts.expectedV)}`;
+    expVal.textContent=fieldFmtV(opts.expectedV);
+    expRow.appendChild(expLbl); expRow.appendChild(expVal);
+    node.appendChild(expRow);
+
+    // Measured value
+    const measRow=document.createElement('div');
+    measRow.style.cssText='display:flex;align-items:center;justify-content:space-between';
+    const measLbl=document.createElement('span');
+    measLbl.style.cssText='font-family:var(--mono);font-size:9.5px;color:#94a3b8';
+    measLbl.textContent='Medido';
+    const measVal=document.createElement('span');
+    measVal.style.cssText=`font-family:var(--mono);font-size:12px;font-weight:700;
+      color:${hasMeasured?'#1e293b':'#cbd5e1'}`;
+    measVal.textContent=hasMeasured?(raw>=0?'+':'')+raw.toFixed(1)+' dBm':'— tocar para ingresar';
+    measRow.appendChild(measLbl); measRow.appendChild(measVal);
+    node.appendChild(measRow);
+
+    // Delta badge
+    if(badge){
+      const badgeEl=document.createElement('div');
+      badgeEl.style.cssText=`margin-top:8px;padding:4px 10px;border-radius:8px;text-align:center;
+        font-family:var(--mono);font-size:11px;font-weight:700;
+        color:${badge.color};background:${badge.bg}`;
+      badgeEl.textContent=badge.txt+(Math.abs(parseFloat(badge.txt))<=1?' ✓':Math.abs(parseFloat(badge.txt))<=2.5?' ⚠':' ✗');
+      node.appendChild(badgeEl);
+    }
+
+    // Measured indicator dot
+    if(hasMeasured){
+      const dot=document.createElement('div');
+      dot.style.cssText=`position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;
+        background:${badge?badge.color:'#94a3b8'}`;
+      node.appendChild(dot);
+    }
+
+    return node;
+  }
+
+  // ── connector line ──
+  function makeLine(label, distM, br, seg){
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:0';
+
+    const line=document.createElement('div');
+    line.style.cssText='width:3px;height:20px;background:#e2e8f0;border-radius:2px';
+
+    const distWrap=document.createElement('div');
+    distWrap.style.cssText='display:flex;align-items:center;gap:6px;padding:3px 10px;'+
+      'background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;cursor:pointer';
+    const distLbl=document.createElement('span');
+    distLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#6366f1';
+    distLbl.textContent=`📏 ${label}`;
+    const distVal=document.createElement('span');
+    distVal.style.cssText='font-family:var(--mono);font-size:11px;font-weight:700;color:#4338ca';
+    distVal.textContent=fieldLenGet(br,seg)+'m';
+
+    // Tap to edit distance
+    distWrap.onclick=(e)=>{
+      e.stopPropagation();
+      const n=prompt(`Distancia ${label} (metros):`, fieldLenGet(br,seg));
+      if(n===null) return;
+      const v=parseFloat(n);
+      if(!isNaN(v)){ FIELD.len[br][seg]=v; renderFieldView(); }
+    };
+
+    distWrap.appendChild(distLbl); distWrap.appendChild(distVal);
+
+    const line2=document.createElement('div');
+    line2.style.cssText='width:3px;height:20px;background:#e2e8f0;border-radius:2px';
+
+    wrap.appendChild(line); wrap.appendChild(distWrap); wrap.appendChild(line2);
+    return wrap;
+  }
+
+  // ── center wrapper ──
+  function centered(el){
+    const w=document.createElement('div');
+    w.style.cssText='display:flex;flex-direction:column;align-items:center';
+    w.appendChild(el);
+    return w;
+  }
+
+  const segLabels={hc1:'Hub → CTO1',c1c2:'CTO1 → CTO2',c2c3:'CTO2 → CTO3',c3c4:'CTO3 → CTO4'};
+  const brColor={a:'#1e40af',b:'#065f46'};
+
+  // HUB expected = always theoretical (from config), regardless of what tech measured
+  const hubExpected = s.hubOutPower!==null&&s.hubOutPower!==undefined
+    ? s.hubOutPower
+    : (s.olt-(s.lh+s.lhe));
+
+  // HUB node
+  container.appendChild(centered(makeNode({
+    id:'hub', title:'HUB SP 1×2', subtitle:'Salida rama '+br.toUpperCase(),
+    expectedV:hubExpected, color:'#7c3aed', width:240, noPatch:true
+  })));
+
+  // Branch line
+  const branchLine=document.createElement('div');
+  branchLine.style.cssText='width:3px;height:24px;background:'+brColor[br]+';border-radius:2px;margin:0 auto';
+  container.appendChild(branchLine);
+
+  // ── CTOs 1-4 ──
+  const segKeys=['hc1','c1c2','c2c3','c3c4'];
+  const segLabelsArr=['Hub → CTO1','CTO1 → CTO2','CTO2 → CTO3','CTO3 → CTO4'];
+
+  for(let num=1;num<=4;num++){
+    const isLast=num===4;
+    const ck=`${br}${num}`;
+
+    // Distance row above this CTO
+    container.appendChild(centered(makeLine(segLabelsArr[num-1], null, br, segKeys[num-1])));
+
+    // CTO card — groups Entrada + Salida + Clientes
+    const card=document.createElement('div');
+    card.style.cssText='width:240px;border:2.5px solid '+brColor[br]+';border-radius:14px;overflow:hidden;'+
+      'box-shadow:0 2px 8px rgba(0,0,0,.08)';
+
+    // Card header
+    const cardHdr=document.createElement('div');
+    cardHdr.style.cssText='background:'+brColor[br]+';padding:8px 12px;'+
+      'font-family:var(--sans);font-size:13px;font-weight:700;color:white';
+    cardHdr.textContent='CTO '+num+(isLast?' (terminal)':'');
+    card.appendChild(cardHdr);
+
+    // Entrada
+    const entRow=makeNode({
+      id:`${ck}_in`, title:'Entrada',
+      subtitle:'fibra entrante',
+      expectedV:T[`${ck}_in`], color:brColor[br], width:240
+    });
+    entRow.style.borderRadius='0'; entRow.style.border='none';
+    entRow.style.borderBottom='1px solid #e5e7eb';
+    card.appendChild(entRow);
+
+    // Salida → siguiente CTO (no en CTO4)
+    if(!isLast){
+      const salRow=makeNode({
+        id:`${ck}_pass`, title:'Salida → CTO '+(num+1),
+        subtitle:`${rr[num-1]}% continúa`,
+        expectedV:T[`${ck}_pass`], color:'#0369a1', width:240
+      });
+      salRow.style.borderRadius='0'; salRow.style.border='none';
+      salRow.style.borderBottom='1px solid #e5e7eb';
+      card.appendChild(salRow);
+    }
+
+    // Puertos clientes (SP 1×8 output)
+    const cliRow=makeNode({
+      id:`${ck}_onu`, title:'Puertos clientes',
+      subtitle:`SP 1×8 — ${isLast?'100':''+Math.round(100-rr[num-1])}% bajada`,
+      expectedV:T[`${ck}_onu`], color:'#15803d', width:240
+    });
+    cliRow.style.borderRadius='0'; cliRow.style.border='none';
+    card.appendChild(cliRow);
+
+    container.appendChild(centered(card));
+  }
+
+  // Patchcord note at bottom
+  const note=document.createElement('div');
+  note.style.cssText='margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;'+
+    'padding:10px 14px;font-family:var(--mono);font-size:10px;color:#78716c;line-height:1.6';
+  note.innerHTML=`<b style="color:#b45309">📌 Corrección patchcord activa</b><br>
+    Cada medición se corrige +${(FIELD.patchLoss*2).toFixed(1)} dB (${FIELD.patchLoss} dB × 2 conectores) antes de comparar.<br>
+    <span style="color:#6366f1;cursor:pointer;text-decoration:underline" onclick="
+      var n=prompt('Pérdida por conector (dB):',FIELD.patchLoss);
+      if(n!==null){var v=parseFloat(n);if(!isNaN(v)){FIELD.patchLoss=v;renderFieldView();}}
+    ">⚙ Cambiar (${FIELD.patchLoss} dB/conector)</span>`;
+  container.appendChild(note);
+}
+
+// ── Input modal ──
+function buildFieldModal(){
+  if(document.getElementById('field-input-modal')) return;
+  const modal=document.createElement('div');
+  modal.id='field-input-modal';
+  modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);'+
+    'z-index:2000;align-items:flex-end;justify-content:center';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:16px 16px 0 0;padding:20px 20px 32px;width:100%;max-width:480px">
+      <div id="field-input-lbl" style="font-family:var(--sans);font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px"></div>
+      <div id="field-input-exp" style="font-family:var(--mono);font-size:11px;color:#64748b;margin-bottom:14px"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:#94a3b8;margin-bottom:6px">
+        Ingresá el valor medido con el OPM (dBm):
+      </div>
+      <input id="field-input-val" type="number" step="0.1" inputmode="decimal"
+        style="width:100%;padding:14px;border:2px solid #6366f1;border-radius:10px;
+        font-family:var(--mono);font-size:22px;text-align:center;outline:none;
+        box-sizing:border-box;margin-bottom:12px" placeholder="-12.5">
+      <div style="display:flex;gap:8px">
+        <button onclick="fieldClearInput()" style="flex:1;padding:12px;border-radius:8px;
+          border:1.5px solid #e5e7eb;background:white;font-family:var(--mono);font-size:13px;
+          color:#64748b;cursor:pointer">🗑 Borrar</button>
+        <button onclick="fieldCloseInput()" style="flex:1;padding:12px;border-radius:8px;
+          border:1.5px solid #e5e7eb;background:white;font-family:var(--mono);font-size:13px;
+          color:#64748b;cursor:pointer">Cancelar</button>
+        <button onclick="fieldSaveInput()" style="flex:2;padding:12px;border-radius:8px;
+          border:none;background:#6366f1;color:white;font-family:var(--mono);font-size:14px;
+          font-weight:700;cursor:pointer">✔ Guardar</button>
+      </div>
+    </div>`;
+  modal.onclick=(e)=>{ if(e.target===modal) fieldCloseInput(); };
+  document.body.appendChild(modal);
+}
+
+// ── Overlay ──
+function buildFieldOverlay(){
+  if(document.getElementById('field-overlay')) return;
+  buildFieldModal();
+  const overlay=document.createElement('div');
+  overlay.id='field-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:#f0f4f8;z-index:1000;'+
+    'display:none;flex-direction:column;overflow:hidden';
+
+  // Header
+  const hdr=document.createElement('div');
+  hdr.style.cssText='background:#1e293b;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0';
+  hdr.innerHTML=`
+    <div style="flex:1">
+      <div style="font-family:var(--sans);font-size:14px;font-weight:700;color:white">📡 Vista Técnico — Desbalanceada</div>
+      <div style="font-family:var(--mono);font-size:10px;color:#94a3b8">tocá cada nodo para ingresar el valor medido</div>
+    </div>
+    <button onclick="toggleFieldView(false)"
+      style="background:#334155;color:white;border:none;border-radius:6px;padding:7px 14px;
+      font-family:var(--mono);font-size:11px;cursor:pointer">← Salir</button>`;
+  overlay.appendChild(hdr);
+
+  // Branch selector + ratio quick edit
+  const ctrlBar=document.createElement('div');
+  ctrlBar.id='field-ctrl-bar';
+  ctrlBar.style.cssText='background:#0f172a;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap';
+  overlay.appendChild(ctrlBar);
+
+  // Scrollable tree
+  const scroll=document.createElement('div');
+  scroll.style.cssText='flex:1;overflow-y:auto;padding:16px 14px 32px;display:flex;flex-direction:column;align-items:center';
+  const tree=document.createElement('div');
+  tree.id='field-tree';
+  tree.style.cssText='width:100%;max-width:440px';
+  scroll.appendChild(tree);
+  overlay.appendChild(scroll);
+  document.body.appendChild(overlay);
+}
+
+function buildFieldCtrlBar(){
+  const bar=document.getElementById('field-ctrl-bar');
+  if(!bar) return;
+  bar.innerHTML='';
+  const s=STATE.desbal;
+
+  // Branch buttons
+  const brLbl=document.createElement('span');
+  brLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b;font-weight:700';
+  brLbl.textContent='RAMA:';
+  bar.appendChild(brLbl);
+
+  ['a','b'].forEach(br=>{
+    const btn=document.createElement('button');
+    const active=FIELD.activeBr===br;
+    btn.style.cssText=`padding:6px 18px;border-radius:6px;border:none;cursor:pointer;
+      font-family:var(--mono);font-size:12px;font-weight:700;
+      background:${active?(br==='a'?'#1e40af':'#065f46'):'#334155'};
+      color:${active?'white':'#94a3b8'}`;
+    btn.textContent='Rama '+br.toUpperCase();
+    btn.onclick=()=>{ FIELD.activeBr=br; buildFieldCtrlBar(); renderFieldView(); };
+    bar.appendChild(btn);
+  });
+
+  // Ratio quick edit
+  const sep=document.createElement('div');
+  sep.style.cssText='width:1px;height:24px;background:#334155;margin:0 4px';
+  bar.appendChild(sep);
+
+  const ratLbl=document.createElement('span');
+  ratLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b;font-weight:700';
+  ratLbl.textContent='SP%:';
+  bar.appendChild(ratLbl);
+
+  const br=FIELD.activeBr;
+  [{k:'r1a',l:'C1'},{k:'r2a',l:'C2'},{k:'r3a',l:'C3'}].forEach(({k,l})=>{
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;align-items:center;gap:3px';
+    const lbl=document.createElement('span');
+    lbl.style.cssText='font-family:var(--mono);font-size:10px;color:#94a3b8';
+    lbl.textContent=l+':';
+    const inp=document.createElement('input');
+    inp.type='number';inp.step='5';inp.min='50';inp.max='90';
+    inp.value=s[k];
+    inp.style.cssText='width:44px;padding:3px 5px;border:1px solid #475569;border-radius:4px;'+
+      'font-family:var(--mono);font-size:11px;background:#1e293b;color:white;text-align:right;outline:none';
+    inp.oninput=()=>{
+      const n=parseFloat(inp.value);
+      if(!isNaN(n)){s[k]=n;s[k.replace('a','b')]=n;renderFieldView();}
+    };
+    const pct=document.createElement('span');
+    pct.style.cssText='font-family:var(--mono);font-size:10px;color:#475569';
+    pct.textContent='%';
+    wrap.appendChild(lbl);wrap.appendChild(inp);wrap.appendChild(pct);
+    bar.appendChild(wrap);
+  });
+}
+
+function toggleFieldView(show){
+  buildFieldOverlay();
+  const el=document.getElementById('field-overlay');
+  el.style.display=show?'flex':'none';
+  if(show){ buildFieldCtrlBar(); renderFieldView(); }
+}
+
+function isMobileDevice(){ return window.innerWidth<768; }
+
+function addFieldBtn(){
+  const hdrBtns=document.querySelector('.hdr-btns');
+  if(!hdrBtns||document.getElementById('field-btn')) return;
+  const btn=document.createElement('button');
+  btn.id='field-btn';
+  btn.className='hbtn hbtn-s';
+  btn.textContent='📡 Técnico';
+  btn.onclick=()=>toggleFieldView(true);
+  hdrBtns.insertBefore(btn,hdrBtns.firstChild);
+}
+
+window.addEventListener('resize',()=>{
+  if(isMobileDevice()&&currentTopo==='desbal'){
+    const el=document.getElementById('field-overlay');
+    if(el&&el.style.display==='none') toggleFieldView(true);
+  }
+});
+
+addFieldBtn();
+
 buildOnuCountUI();
 buildAttTables();
 addLog('<span class="linf">FTTH Sim v7 — 3 topologías</span>');
