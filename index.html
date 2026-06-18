@@ -22,6 +22,10 @@ body{background:var(--bg);color:var(--txt);font-family:var(--sans);display:flex;
 header{background:var(--sur);border-bottom:1px solid var(--brd);padding:6px 14px;
   display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
   box-shadow:0 1px 3px rgba(0,0,0,.06);gap:12px}
+@media(max-width:767px){
+  header{overflow-x:auto;-webkit-overflow-scrolling:touch;justify-content:flex-start;gap:8px}
+  header::-webkit-scrollbar{display:none}
+}
 .logo{display:flex;align-items:center;gap:9px;flex-shrink:0}
 .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#0066cc,#0044aa);
   border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px}
@@ -3618,21 +3622,10 @@ function buildFieldModal(){
       <div style="font-family:var(--mono);font-size:11px;color:#94a3b8;margin-bottom:6px">
         Ingresá el valor medido con el OPM (dBm):
       </div>
-      <input id="field-input-val" type="text" inputmode="decimal"
+      <input id="field-input-val" type="text" inputmode="text"
         style="width:100%;padding:14px;border:2px solid #6366f1;border-radius:10px;
         font-family:var(--mono);font-size:22px;text-align:center;outline:none;
         box-sizing:border-box;margin-bottom:12px" placeholder="-12.5">
-      <div style="display:flex;gap:6px;margin-bottom:10px">
-        <button onclick="fieldInputAppend('-')" style="flex:1;padding:10px;border-radius:8px;
-          border:1.5px solid #e5e7eb;background:#f8fafc;font-family:var(--mono);font-size:18px;
-          color:#374151;cursor:pointer">−</button>
-        <button onclick="fieldInputAppend('.')" style="flex:1;padding:10px;border-radius:8px;
-          border:1.5px solid #e5e7eb;background:#f8fafc;font-family:var(--mono);font-size:18px;
-          color:#374151;cursor:pointer">.</button>
-        <button onclick="fieldInputBackspace()" style="flex:1;padding:10px;border-radius:8px;
-          border:1.5px solid #e5e7eb;background:#f8fafc;font-family:var(--mono);font-size:18px;
-          color:#374151;cursor:pointer">⌫</button>
-      </div>
       <div style="display:flex;gap:8px">
         <button onclick="fieldClearInput()" style="flex:1;padding:12px;border-radius:8px;
           border:1.5px solid #e5e7eb;background:white;font-family:var(--mono);font-size:13px;
