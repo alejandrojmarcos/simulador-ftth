@@ -3284,160 +3284,185 @@ function fieldChain(br){
 }
 
 // ── Main calc ────────────────────────────────────────────────
-// Returns { expected:{id->dBm}, anchor:id|null }
-// Rules:
-//   - All measured values are stored forever and always shown
-//   - "anchor" = the measured node closest UPSTREAM to each node
-//   - From anchor, propagate FORWARD with losses (downstream)
-//   - From anchor, propagate BACKWARD with inverse losses (upstream)
-//   - If multiple measurements, each measured node becomes an anchor for downstream
-//   - Hub expected = always theoretical (config)
+// Returns { expected:{id->dBm}, anchor:id|null, hubTheory }
+// KEY RULE: expected is ALWAYS calculated from the best upstream reference.
+//           measured values are stored separately and never override expected.
+//           The delta = measured - expected shows the deviation.
 function fieldCalc(br){
   const {sp18,spP,spT,fib,hubTheory} = fieldPhysics(br);
-  const chain = fieldChain(br);
-  const ids   = chain.map(n=>n.id);
-  const m     = id => (FIELD.measured[id] !== undefined ? FIELD.measured[id] : null);
+  const m = id => (FIELD.measured[id] !== undefined ? FIELD.measured[id] : null);
 
-  // Step 1: populate "base" values — measured where available
-  const val = {}; // id -> dBm or null
-  ids.forEach(id=>{ val[id] = m(id); });
+  // Find the upstream-most measured node to use as anchor for forward propagation
+  // Priority: hub > 1_in > 1_pass > 2_in > ... (upstream wins)
+  const orderedIds = [
+    'hub',
+    `${br}1_in`,`${br}1_pass`,
+    `${br}2_in`,`${br}2_pass`,
+    `${br}3_in`,`${br}3_pass`,
+    `${br}4_in`,
+  ];
 
-  // Step 2: hub expected is always theoretical
-  // If hub is NOT measured, val['hub'] = null → no upstream propagation possible
-  // But we can still propagate backward from any measured downstream node
-
-  // Step 3: forward propagation
-  // For each pair of consecutive nodes, if val[prev] is known and val[curr] is null,
-  // compute val[curr] from the loss
-  function stepForward(fromId, toId, loss){
-    if(val[toId]===null && val[fromId]!==null)
-      val[toId] = val[fromId] - loss;
-  }
-
-  // Losses between consecutive chain nodes
-  function chainLoss(i){
-    const from = chain[i], to = chain[i+1];
-    if(!from||!to) return 0;
-    if(from.kind==='hub'   && to.kind==='in'  ) return fib('hc1');
-    if(from.kind==='in'    && to.kind==='pass') return spP(to.cto-1);
-    if(from.kind==='in'    && to.kind==='onu' ) return spT(to.cto-1) + sp18;
-    if(from.kind==='pass'  && to.kind==='in'  ) return fib({2:'c1c2',3:'c2c3',4:'c3c4'}[to.cto]);
-    if(from.kind==='pass'  && to.kind==='onu' ) return spT(from.cto-1) + sp18; // shouldn't happen
-    if(from.kind==='in'    && to.kind==='onu' && from.cto===4) return sp18;
-    return 0;
-  }
-
-  // But chain is linear — each node maps to exactly one next:
-  // hub -> 1_in -> 1_pass  (and 1_in -> 1_onu as a branch)
-  //              -> 2_in  -> 2_pass -> ...
-  // We handle branches specially
-
-  function lossForward(fromId, toId){
-    const fi = ids.indexOf(fromId), ti = ids.indexOf(toId);
-    if(fi<0||ti<0) return null;
-    // Direct adjacent
-    const from = chain[fi], to = chain[ti];
-    if(from.kind==='hub'   && to.id===`${br}1_in`)   return fib('hc1');
-    if(from.kind==='in'    && to.kind==='pass')        return spP(from.cto-1);
-    if(from.kind==='in'    && to.kind==='onu')         return spT(from.cto-1) + sp18;
-    if(from.kind==='pass'  && to.kind==='in'){
-      const seg=['c1c2','c2c3','c3c4'][to.cto-2];
-      return seg ? fib(seg) : null;
-    }
-    if(from.kind==='in'    && to.kind==='onu' && from.cto===4) return sp18;
-    return null;
-  }
-
-  function lossBackward(toId, fromId){
-    const l = lossForward(fromId, toId);
-    return l; // same magnitude, reversed sign when applying
-  }
-
-  // Forward pass: go through chain in order, propagate from each known value
-  // Do multiple passes to ensure full propagation
-  for(let pass=0; pass<3; pass++){
-    // hub -> 1_in
-    if(val[`${br}1_in`]===null && val['hub']!==null)
-      val[`${br}1_in`] = val['hub'] - fib('hc1');
-    // 1_in -> 1_pass, 1_onu
-    if(val[`${br}1_in`]!==null){
-      if(val[`${br}1_pass`]===null) val[`${br}1_pass`] = val[`${br}1_in`] - spP(0);
-      if(val[`${br}1_onu`]===null)  val[`${br}1_onu`]  = val[`${br}1_in`] - spT(0) - sp18;
-    }
-    // 1_pass -> 2_in
-    if(val[`${br}2_in`]===null && val[`${br}1_pass`]!==null)
-      val[`${br}2_in`] = val[`${br}1_pass`] - fib('c1c2');
-    if(val[`${br}2_in`]!==null){
-      if(val[`${br}2_pass`]===null) val[`${br}2_pass`] = val[`${br}2_in`] - spP(1);
-      if(val[`${br}2_onu`]===null)  val[`${br}2_onu`]  = val[`${br}2_in`] - spT(1) - sp18;
-    }
-    if(val[`${br}3_in`]===null && val[`${br}2_pass`]!==null)
-      val[`${br}3_in`] = val[`${br}2_pass`] - fib('c2c3');
-    if(val[`${br}3_in`]!==null){
-      if(val[`${br}3_pass`]===null) val[`${br}3_pass`] = val[`${br}3_in`] - spP(2);
-      if(val[`${br}3_onu`]===null)  val[`${br}3_onu`]  = val[`${br}3_in`] - spT(2) - sp18;
-    }
-    if(val[`${br}4_in`]===null && val[`${br}3_pass`]!==null)
-      val[`${br}4_in`] = val[`${br}3_pass`] - fib('c3c4');
-    if(val[`${br}4_in`]!==null){
-      if(val[`${br}4_onu`]===null) val[`${br}4_onu`] = val[`${br}4_in`] - sp18;
-    }
-  }
-
-  // Backward pass: if a downstream node is measured but upstream is null, invert
-  for(let pass=0; pass<3; pass++){
-    if(val[`${br}1_in`]===null && val[`${br}1_pass`]!==null)
-      val[`${br}1_in`] = val[`${br}1_pass`] + spP(0);
-    if(val[`${br}1_in`]===null && val[`${br}1_onu`]!==null)
-      val[`${br}1_in`] = val[`${br}1_onu`] + spT(0) + sp18;
-    if(val['hub']===null && val[`${br}1_in`]!==null)
-      val['hub'] = val[`${br}1_in`] + fib('hc1');
-
-    if(val[`${br}2_in`]===null && val[`${br}2_pass`]!==null)
-      val[`${br}2_in`] = val[`${br}2_pass`] + spP(1);
-    if(val[`${br}2_in`]===null && val[`${br}2_onu`]!==null)
-      val[`${br}2_in`] = val[`${br}2_onu`] + spT(1) + sp18;
-    if(val[`${br}1_pass`]===null && val[`${br}2_in`]!==null)
-      val[`${br}1_pass`] = val[`${br}2_in`] + fib('c1c2');
-    if(val[`${br}1_in`]===null && val[`${br}1_pass`]!==null)
-      val[`${br}1_in`] = val[`${br}1_pass`] + spP(0);
-    if(val['hub']===null && val[`${br}1_in`]!==null)
-      val['hub'] = val[`${br}1_in`] + fib('hc1');
-
-    if(val[`${br}3_in`]===null && val[`${br}3_pass`]!==null)
-      val[`${br}3_in`] = val[`${br}3_pass`] + spP(2);
-    if(val[`${br}3_in`]===null && val[`${br}3_onu`]!==null)
-      val[`${br}3_in`] = val[`${br}3_onu`] + spT(2) + sp18;
-    if(val[`${br}2_pass`]===null && val[`${br}3_in`]!==null)
-      val[`${br}2_pass`] = val[`${br}3_in`] + fib('c2c3');
-    if(val[`${br}2_in`]===null && val[`${br}2_pass`]!==null)
-      val[`${br}2_in`] = val[`${br}2_pass`] + spP(1);
-
-    if(val[`${br}4_in`]===null && val[`${br}4_onu`]!==null)
-      val[`${br}4_in`] = val[`${br}4_onu`] + sp18;
-    if(val[`${br}3_pass`]===null && val[`${br}4_in`]!==null)
-      val[`${br}3_pass`] = val[`${br}4_in`] + fib('c3c4');
-    if(val[`${br}3_in`]===null && val[`${br}3_pass`]!==null)
-      val[`${br}3_in`] = val[`${br}3_pass`] + spP(2);
-  }
-
-  // Hub expected is ALWAYS the theoretical value (from config)
-  // We use hubTheory for the hub's "expected" display
-  // val['hub'] is the calculated/measured value used for propagation
-
-  // Determine anchor: the measured node that is most upstream
+  // Find anchor = most upstream measured node
   let anchor = null;
-  for(const node of chain){
-    if(m(node.id)!==null){ anchor = node.id; break; }
+  for(const id of orderedIds){
+    if(m(id)!==null){ anchor=id; break; }
   }
-  // If only downstream nodes measured, anchor = most upstream measured
+  // If nothing upstream, check onu nodes too (downstream-only measurement)
   if(!anchor){
-    for(let i=chain.length-1;i>=0;i--){
-      if(m(chain[i].id)!==null){ anchor = chain[i].id; break; }
+    const onuIds=[`${br}1_onu`,`${br}2_onu`,`${br}3_onu`,`${br}4_onu`];
+    for(const id of onuIds){ if(m(id)!==null){ anchor=id; break; } }
+  }
+
+  // Anchor value — what we propagate from
+  // Hub is special: if hub measured, use that; else use theory if nothing else
+  let anchorBase = null;
+  if(anchor){
+    anchorBase = m(anchor);
+  } else {
+    // No measurements at all — use theoretical hub as silent base
+    anchorBase = hubTheory;
+    anchor = '__theory__'; // virtual anchor
+  }
+
+  // Expected: always calculated forward from anchor, ignoring all other measurements
+  // This way expected[cto4_in] always reflects what we'd calculate from upstream
+  const E = {};
+
+  function forwardFrom(startId, startVal){
+    if(startVal===null) return;
+    // Set start
+    E[startId] = E[startId] ?? startVal;
+
+    // Forward chain — propagate only if not already set by a closer anchor
+    function maybeSet(id, v){ if(!(id in E)) E[id]=v; }
+
+    if(startId==='hub'||!(startId in E)){
+      const h = E['hub'] ?? startVal;
+      if(startId==='hub'){
+        maybeSet(`${br}1_in`, h - fib('hc1'));
+      }
+    }
+    const c1in = E[`${br}1_in`];
+    if(c1in!==undefined){
+      maybeSet(`${br}1_pass`, c1in - spP(0));
+      maybeSet(`${br}1_onu`,  c1in - spT(0) - sp18);
+      const c1p = E[`${br}1_pass`];
+      if(c1p!==undefined){
+        maybeSet(`${br}2_in`, c1p - fib('c1c2'));
+        const c2in = E[`${br}2_in`];
+        if(c2in!==undefined){
+          maybeSet(`${br}2_pass`, c2in - spP(1));
+          maybeSet(`${br}2_onu`,  c2in - spT(1) - sp18);
+          const c2p = E[`${br}2_pass`];
+          if(c2p!==undefined){
+            maybeSet(`${br}3_in`, c2p - fib('c2c3'));
+            const c3in = E[`${br}3_in`];
+            if(c3in!==undefined){
+              maybeSet(`${br}3_pass`, c3in - spP(2));
+              maybeSet(`${br}3_onu`,  c3in - spT(2) - sp18);
+              const c3p = E[`${br}3_pass`];
+              if(c3p!==undefined){
+                maybeSet(`${br}4_in`, c3p - fib('c3c4'));
+                const c4in = E[`${br}4_in`];
+                if(c4in!==undefined) maybeSet(`${br}4_onu`, c4in - sp18);
+              }
+            }
+          }
+        }
+      }
     }
   }
 
-  return { val, anchor, hubTheory };
+  // Backward from anchor if anchor is downstream
+  function backwardFrom(startId, startVal){
+    if(startVal===null) return;
+    E[startId] = startVal;
+    // Walk backwards
+    const back = {
+      [`${br}4_onu`]:  ()=>{ E[`${br}4_in`]   = E[`${br}4_in`]   ?? startVal+sp18; },
+      [`${br}4_in`]:   ()=>{ E[`${br}3_pass`]  = E[`${br}3_pass`] ?? E[`${br}4_in`]+fib('c3c4'); },
+      [`${br}3_pass`]: ()=>{ E[`${br}3_in`]    = E[`${br}3_in`]   ?? E[`${br}3_pass`]+spP(2); },
+      [`${br}3_onu`]:  ()=>{ E[`${br}3_in`]    = E[`${br}3_in`]   ?? startVal+spT(2)+sp18; },
+      [`${br}3_in`]:   ()=>{ E[`${br}2_pass`]  = E[`${br}2_pass`] ?? E[`${br}3_in`]+fib('c2c3'); },
+      [`${br}2_pass`]: ()=>{ E[`${br}2_in`]    = E[`${br}2_in`]   ?? E[`${br}2_pass`]+spP(1); },
+      [`${br}2_onu`]:  ()=>{ E[`${br}2_in`]    = E[`${br}2_in`]   ?? startVal+spT(1)+sp18; },
+      [`${br}2_in`]:   ()=>{ E[`${br}1_pass`]  = E[`${br}1_pass`] ?? E[`${br}2_in`]+fib('c1c2'); },
+      [`${br}1_pass`]: ()=>{ E[`${br}1_in`]    = E[`${br}1_in`]   ?? E[`${br}1_pass`]+spP(0); },
+      [`${br}1_onu`]:  ()=>{ E[`${br}1_in`]    = E[`${br}1_in`]   ?? startVal+spT(0)+sp18; },
+      [`${br}1_in`]:   ()=>{ E['hub']           = E['hub']         ?? E[`${br}1_in`]+fib('hc1'); },
+    };
+    // Walk backwards from startId
+    const backOrder = [`${br}4_onu`,`${br}4_in`,`${br}3_pass`,`${br}3_onu`,`${br}3_in`,`${br}2_pass`,`${br}2_onu`,`${br}2_in`,`${br}1_pass`,`${br}1_onu`,`${br}1_in`,'hub'];
+    const si = backOrder.indexOf(startId);
+    for(let i=si; i<backOrder.length; i++){
+      const fn = back[backOrder[i]];
+      if(fn) fn();
+    }
+  }
+
+  // Hub expected is ALWAYS theoretical (never overridden by backward propagation)
+  E['hub'] = hubTheory;
+
+  // Run calculation
+  if(anchor==='__theory__'){
+    // No measurements — calculate everything from theory
+    forwardFrom('hub', hubTheory);
+  } else {
+    // Determine if anchor is upstream or downstream of hub
+    const upstreamOrder = ['hub',`${br}1_in`,`${br}1_pass`,`${br}2_in`,`${br}2_pass`,`${br}3_in`,`${br}3_pass`,`${br}4_in`];
+    const isUpstream = upstreamOrder.includes(anchor);
+
+    if(isUpstream){
+      // Anchor is upstream: propagate forward
+      if(anchor!=='hub') E[anchor] = anchorBase;
+      // Fill from hub theory for everything upstream of anchor
+      forwardFrom('hub', hubTheory);
+      // Then override from anchor forward (anchor's measured propagates downstream)
+      E[anchor] = anchorBase;
+      // Re-propagate from anchor forward, overriding theory
+      const reE = {};
+      reE[anchor] = anchorBase;
+      function reForward(from, v){
+        if(from===`${br}1_in`||from==='hub'){
+          if(from==='hub') reE[`${br}1_in`] = v - fib('hc1');
+          const c1 = reE[`${br}1_in`] ?? E[`${br}1_in`];
+          if(c1!==undefined){reE[`${br}1_pass`]=c1-spP(0); reE[`${br}1_onu`]=c1-spT(0)-sp18;}
+        }
+        const c1p = reE[`${br}1_pass`];
+        if(c1p!==undefined){
+          reE[`${br}2_in`]=c1p-fib('c1c2');
+          const c2=reE[`${br}2_in`];
+          if(c2!==undefined){reE[`${br}2_pass`]=c2-spP(1);reE[`${br}2_onu`]=c2-spT(1)-sp18;}
+        }
+        const c2p=reE[`${br}2_pass`];
+        if(c2p!==undefined){
+          reE[`${br}3_in`]=c2p-fib('c2c3');
+          const c3=reE[`${br}3_in`];
+          if(c3!==undefined){reE[`${br}3_pass`]=c3-spP(2);reE[`${br}3_onu`]=c3-spT(2)-sp18;}
+        }
+        const c3p=reE[`${br}3_pass`];
+        if(c3p!==undefined){
+          reE[`${br}4_in`]=c3p-fib('c3c4');
+          const c4=reE[`${br}4_in`];
+          if(c4!==undefined) reE[`${br}4_onu`]=c4-sp18;
+        }
+      }
+      reForward(anchor, anchorBase);
+      // Merge reE into E (reE wins for downstream of anchor)
+      Object.assign(E, reE);
+    } else {
+      // Anchor is a _onu node — propagate backward then forward
+      backwardFrom(anchor, anchorBase);
+      forwardFrom('hub', E['hub']??hubTheory);
+    }
+    // Always keep hub = theoretical
+    E['hub'] = hubTheory;
+  }
+
+  // Real anchor for display (most upstream measured, or null if using theory)
+  const displayAnchor = anchor==='__theory__' ? null : anchor;
+
+  return { expected:E, anchor:displayAnchor, hubTheory };
 }
 
 // ── Delta badge ───────────────────────────────────────────────
@@ -3493,7 +3518,7 @@ function renderFieldView(){
   if(!container) return;
   container.innerHTML='';
   const br = FIELD.activeBr;
-  const {val, anchor, hubTheory} = fieldCalc(br);
+  const {expected, anchor, hubTheory} = fieldCalc(br);
   const chain = fieldChain(br);
   const s = STATE.desbal;
   const rr = s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
@@ -3547,7 +3572,7 @@ function renderFieldView(){
     const {id, label, sublabel, kind} = node;
     const rawMeasured = FIELD.measured[id] !== undefined ? FIELD.measured[id] : null;
     const hasMeasured = rawMeasured !== null;
-    const calcVal = val[id]; // propagated value
+    const calcVal = expected[id]; // propagated value
     // For hub: expected is always theoretical
     const expectedVal = (id==='hub') ? hubTheory : (hasMeasured ? calcVal : null);
     // What to show as "expected": if measured, expected is the propagated calc
@@ -3678,15 +3703,22 @@ function renderFieldView(){
   const brColor = COL.branch[br];
 
   // ── Render chain ──
-  // Group: hub, then per CTO (in + pass + onu in one card)
-  // Actually render each node as its own card for maximum granularity
-  const segKeys=['hc1','c1c2','c2c3','c3c4'];
+  const HUB_MIN=-3, HUB_MAX=3; // expected hub output range dBm
 
   // Hub card
   const hubNode = chain[0];
+  const hubMeasured = FIELD.measured['hub'];
+  const hubOutOfRange = hubMeasured!==undefined && (hubMeasured < HUB_MIN || hubMeasured > HUB_MAX);
   const hubCard2 = document.createElement('div');
   hubCard2.style.cssText='width:100%;max-width:380px;margin:0 auto';
   hubCard2.appendChild(makeCard(hubNode));
+  // Warning banner if out of range
+  if(hubOutOfRange){
+    const warn=document.createElement('div');
+    warn.style.cssText='margin-top:6px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:9px 14px;font-family:var(--mono);font-size:11px;color:#92400e;line-height:1.5';
+    warn.innerHTML=`⚠️ <b>Potencia fuera de rango esperado</b><br>El HUB debería entregar entre <b>${HUB_MIN} y +${HUB_MAX} dBm</b>.<br>Valor medido: <b>${(hubMeasured>=0?'+':'')+hubMeasured.toFixed(1)} dBm</b> — verificar splitter o alimentación.`;
+    hubCard2.appendChild(warn);
+  }
   container.appendChild(hubCard2);
 
   for(let cto=1;cto<=4;cto++){
@@ -3711,7 +3743,7 @@ function renderFieldView(){
       const {id,label,sublabel,kind} = node;
       const rawMeasured = FIELD.measured[id]!==undefined ? FIELD.measured[id] : null;
       const hasMeasured = rawMeasured!==null;
-      const calcVal = val[id];
+      const calcVal = expected[id];
       const showExpected = calcVal;
       const isAnchor = id===anchor;
       const badge = hasMeasured ? fieldDeltaBadge(showExpected, rawMeasured) : null;
