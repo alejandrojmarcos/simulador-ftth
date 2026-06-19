@@ -3284,187 +3284,180 @@ function fieldChain(br){
 }
 
 // ── Main calc ────────────────────────────────────────────────
-// Returns { expected:{id->dBm}, anchor:id|null, hubTheory }
-// KEY RULE: expected is ALWAYS calculated from the best upstream reference.
-//           measured values are stored separately and never override expected.
-//           The delta = measured - expected shows the deviation.
+// Returns:
+//   anchor    : id of most-upstream measured node
+//   theory    : {id->dBm} — calculated from anchor upstream (backward+forward)
+//   fromMeas  : {id->dBm} — calculated forward from each measurement
+//               each node uses the closest upstream measurement as its base
+//   hubTheory : theoretical hub output from config (always fixed)
+
+
+
+
+
+
 function fieldCalc(br){
   const {sp18,spP,spT,fib,hubTheory} = fieldPhysics(br);
-  const m = id => (FIELD.measured[id] !== undefined ? FIELD.measured[id] : null);
+  const m = id => (FIELD.measured[id]!==undefined ? FIELD.measured[id] : null);
 
-  // Find the upstream-most measured node to use as anchor for forward propagation
-  // Priority: hub > 1_in > 1_pass > 2_in > ... (upstream wins)
-  const orderedIds = [
-    'hub',
-    `${br}1_in`,`${br}1_pass`,
-    `${br}2_in`,`${br}2_pass`,
-    `${br}3_in`,`${br}3_pass`,
-    `${br}4_in`,
-  ];
-
-  // Find anchor = most upstream measured node
-  let anchor = null;
-  for(const id of orderedIds){
-    if(m(id)!==null){ anchor=id; break; }
-  }
-  // If nothing upstream, check onu nodes too (downstream-only measurement)
-  if(!anchor){
-    const onuIds=[`${br}1_onu`,`${br}2_onu`,`${br}3_onu`,`${br}4_onu`];
-    for(const id of onuIds){ if(m(id)!==null){ anchor=id; break; } }
-  }
-
-  // Anchor value — what we propagate from
-  // Hub is special: if hub measured, use that; else use theory if nothing else
-  let anchorBase = null;
-  if(anchor){
-    anchorBase = m(anchor);
-  } else {
-    // No measurements at all — use theoretical hub as silent base
-    anchorBase = hubTheory;
-    anchor = '__theory__'; // virtual anchor
-  }
-
-  // Expected: always calculated forward from anchor, ignoring all other measurements
-  // This way expected[cto4_in] always reflects what we'd calculate from upstream
-  const E = {};
-
-  function forwardFrom(startId, startVal){
-    if(startVal===null) return;
-    // Set start
-    E[startId] = E[startId] ?? startVal;
-
-    // Forward chain — propagate only if not already set by a closer anchor
-    function maybeSet(id, v){ if(!(id in E)) E[id]=v; }
-
-    if(startId==='hub'||!(startId in E)){
-      const h = E['hub'] ?? startVal;
-      if(startId==='hub'){
-        maybeSet(`${br}1_in`, h - fib('hc1'));
+  // ── forward propagation helper ──────────────────────────────
+  function propagateFwd(base, baseVal, out){
+    if(baseVal===null) return;
+    out[base] = out[base]??baseVal;
+    const set = (id,v)=>{ if(!(id in out)) out[id]=v; };
+    if(base==='hub'){
+      set(`${br}1_in`, baseVal-fib('hc1'));
+    }
+    if(base===`${br}1_in`||'hub'===base){
+      const c1=out[`${br}1_in`];
+      if(c1!==undefined){ set(`${br}1_pass`,c1-spP(0)); set(`${br}1_onu`,c1-spT(0)-sp18); }
+    }
+    if([`${br}1_pass`,'hub',`${br}1_in`].includes(base)||out[`${br}1_pass`]!==undefined){
+      const c1p=out[`${br}1_pass`];
+      if(c1p!==undefined){
+        set(`${br}2_in`,c1p-fib('c1c2'));
+        const c2=out[`${br}2_in`];
+        if(c2!==undefined){ set(`${br}2_pass`,c2-spP(1)); set(`${br}2_onu`,c2-spT(1)-sp18); }
+        const c2p=out[`${br}2_pass`];
+        if(c2p!==undefined){
+          set(`${br}3_in`,c2p-fib('c2c3'));
+          const c3=out[`${br}3_in`];
+          if(c3!==undefined){ set(`${br}3_pass`,c3-spP(2)); set(`${br}3_onu`,c3-spT(2)-sp18); }
+          const c3p=out[`${br}3_pass`];
+          if(c3p!==undefined){
+            set(`${br}4_in`,c3p-fib('c3c4'));
+            const c4=out[`${br}4_in`];
+            if(c4!==undefined) set(`${br}4_onu`,c4-sp18);
+          }
+        }
       }
     }
-    const c1in = E[`${br}1_in`];
-    if(c1in!==undefined){
-      maybeSet(`${br}1_pass`, c1in - spP(0));
-      maybeSet(`${br}1_onu`,  c1in - spT(0) - sp18);
-      const c1p = E[`${br}1_pass`];
-      if(c1p!==undefined){
-        maybeSet(`${br}2_in`, c1p - fib('c1c2'));
-        const c2in = E[`${br}2_in`];
-        if(c2in!==undefined){
-          maybeSet(`${br}2_pass`, c2in - spP(1));
-          maybeSet(`${br}2_onu`,  c2in - spT(1) - sp18);
-          const c2p = E[`${br}2_pass`];
-          if(c2p!==undefined){
-            maybeSet(`${br}3_in`, c2p - fib('c2c3'));
-            const c3in = E[`${br}3_in`];
-            if(c3in!==undefined){
-              maybeSet(`${br}3_pass`, c3in - spP(2));
-              maybeSet(`${br}3_onu`,  c3in - spT(2) - sp18);
-              const c3p = E[`${br}3_pass`];
-              if(c3p!==undefined){
-                maybeSet(`${br}4_in`, c3p - fib('c3c4'));
-                const c4in = E[`${br}4_in`];
-                if(c4in!==undefined) maybeSet(`${br}4_onu`, c4in - sp18);
-              }
-            }
+    // Handle starting mid-chain
+    const starts = {
+      [`${br}1_pass`]: ()=>{ const c1p=baseVal; set(`${br}2_in`,c1p-fib('c1c2')); },
+      [`${br}2_in`]:   ()=>{ set(`${br}2_pass`,baseVal-spP(1)); set(`${br}2_onu`,baseVal-spT(1)-sp18); },
+      [`${br}2_pass`]: ()=>{ set(`${br}3_in`,baseVal-fib('c2c3')); },
+      [`${br}3_in`]:   ()=>{ set(`${br}3_pass`,baseVal-spP(2)); set(`${br}3_onu`,baseVal-spT(2)-sp18); },
+      [`${br}3_pass`]: ()=>{ set(`${br}4_in`,baseVal-fib('c3c4')); },
+      [`${br}4_in`]:   ()=>{ set(`${br}4_onu`,baseVal-sp18); },
+      [`${br}1_onu`]:  ()=>{ /* terminal branch, nothing downstream */ },
+      [`${br}2_onu`]:  ()=>{ },
+      [`${br}3_onu`]:  ()=>{ },
+      [`${br}4_onu`]:  ()=>{ },
+    };
+    if(starts[base]) starts[base]();
+    // Then fill any remaining gaps
+    const ids2=[`${br}1_pass`,`${br}2_in`,`${br}2_pass`,`${br}3_in`,`${br}3_pass`,`${br}4_in`,`${br}4_onu`];
+    const losses2=[null,fib('c1c2'),null,fib('c2c3'),null,fib('c3c4'),sp18];
+    for(let i=0;i<ids2.length;i++){
+      const id=ids2[i];
+      if(out[id]!==undefined&&i+1<ids2.length&&out[ids2[i+1]]===undefined&&losses2[i+1]!==null){
+        if(id.endsWith('_pass')){
+          const nextIn=ids2[i+1]; if(nextIn&&nextIn.endsWith('_in')) out[nextIn]=out[id]-losses2[i+1];
+        }
+        if(id.endsWith('_in')){
+          const ctoNum=parseInt(id.replace(/\D/g,''));
+          if(!isNaN(ctoNum)){
+            const passId=`${br}${ctoNum}_pass`,onuId=`${br}${ctoNum}_onu`;
+            if(!(passId in out)) out[passId]=out[id]-spP(ctoNum-1);
+            if(!(onuId  in out)) out[onuId] =out[id]-spT(ctoNum-1)-sp18;
           }
         }
       }
     }
   }
 
-  // Backward from anchor if anchor is downstream
-  function backwardFrom(startId, startVal){
-    if(startVal===null) return;
-    E[startId] = startVal;
-    // Walk backwards
-    const back = {
-      [`${br}4_onu`]:  ()=>{ E[`${br}4_in`]   = E[`${br}4_in`]   ?? startVal+sp18; },
-      [`${br}4_in`]:   ()=>{ E[`${br}3_pass`]  = E[`${br}3_pass`] ?? E[`${br}4_in`]+fib('c3c4'); },
-      [`${br}3_pass`]: ()=>{ E[`${br}3_in`]    = E[`${br}3_in`]   ?? E[`${br}3_pass`]+spP(2); },
-      [`${br}3_onu`]:  ()=>{ E[`${br}3_in`]    = E[`${br}3_in`]   ?? startVal+spT(2)+sp18; },
-      [`${br}3_in`]:   ()=>{ E[`${br}2_pass`]  = E[`${br}2_pass`] ?? E[`${br}3_in`]+fib('c2c3'); },
-      [`${br}2_pass`]: ()=>{ E[`${br}2_in`]    = E[`${br}2_in`]   ?? E[`${br}2_pass`]+spP(1); },
-      [`${br}2_onu`]:  ()=>{ E[`${br}2_in`]    = E[`${br}2_in`]   ?? startVal+spT(1)+sp18; },
-      [`${br}2_in`]:   ()=>{ E[`${br}1_pass`]  = E[`${br}1_pass`] ?? E[`${br}2_in`]+fib('c1c2'); },
-      [`${br}1_pass`]: ()=>{ E[`${br}1_in`]    = E[`${br}1_in`]   ?? E[`${br}1_pass`]+spP(0); },
-      [`${br}1_onu`]:  ()=>{ E[`${br}1_in`]    = E[`${br}1_in`]   ?? startVal+spT(0)+sp18; },
-      [`${br}1_in`]:   ()=>{ E['hub']           = E['hub']         ?? E[`${br}1_in`]+fib('hc1'); },
-    };
-    // Walk backwards from startId
-    const backOrder = [`${br}4_onu`,`${br}4_in`,`${br}3_pass`,`${br}3_onu`,`${br}3_in`,`${br}2_pass`,`${br}2_onu`,`${br}2_in`,`${br}1_pass`,`${br}1_onu`,`${br}1_in`,'hub'];
-    const si = backOrder.indexOf(startId);
-    for(let i=si; i<backOrder.length; i++){
-      const fn = back[backOrder[i]];
-      if(fn) fn();
-    }
+  // ── backward propagation helper ─────────────────────────────
+  function propagateBwd(base, baseVal, out){
+    if(baseVal===null) return;
+    out[base]=baseVal;
+    const set=(id,v)=>{ if(!(id in out)) out[id]=v; };
+    if(base===`${br}4_onu`)  { set(`${br}4_in`, baseVal+sp18); base=`${br}4_in`; baseVal=out[base]; }
+    if(base===`${br}4_in`)   { set(`${br}3_pass`,baseVal+fib('c3c4')); base=`${br}3_pass`; baseVal=out[base]; }
+    if(base===`${br}3_onu`)  { set(`${br}3_in`, baseVal+spT(2)+sp18); base=`${br}3_in`; baseVal=out[base]; }
+    if(base===`${br}3_pass`) { set(`${br}3_in`, out[`${br}3_in`]??(baseVal+spP(2))); base=`${br}3_in`; baseVal=out[`${br}3_in`]; }
+    if(base===`${br}3_in`)   { set(`${br}2_pass`,baseVal+fib('c2c3')); base=`${br}2_pass`; baseVal=out[base]; }
+    if(base===`${br}2_onu`)  { set(`${br}2_in`, baseVal+spT(1)+sp18); base=`${br}2_in`; baseVal=out[base]; }
+    if(base===`${br}2_pass`) { set(`${br}2_in`, out[`${br}2_in`]??(baseVal+spP(1))); base=`${br}2_in`; baseVal=out[`${br}2_in`]; }
+    if(base===`${br}2_in`)   { set(`${br}1_pass`,baseVal+fib('c1c2')); base=`${br}1_pass`; baseVal=out[base]; }
+    if(base===`${br}1_onu`)  { set(`${br}1_in`, baseVal+spT(0)+sp18); base=`${br}1_in`; baseVal=out[base]; }
+    if(base===`${br}1_pass`) { set(`${br}1_in`, out[`${br}1_in`]??(baseVal+spP(0))); base=`${br}1_in`; baseVal=out[`${br}1_in`]; }
+    if(base===`${br}1_in`)   { set('hub', baseVal+fib('hc1')); }
   }
 
-  // Hub expected is ALWAYS theoretical (never overridden by backward propagation)
-  E['hub'] = hubTheory;
+  // ── THEORY chain (anchor-based) ─────────────────────────────
+  const upOrder=['hub',`${br}1_in`,`${br}1_pass`,`${br}1_onu`,
+    `${br}2_in`,`${br}2_pass`,`${br}2_onu`,
+    `${br}3_in`,`${br}3_pass`,`${br}3_onu`,
+    `${br}4_in`,`${br}4_onu`];
+  let anchor=null;
+  for(const id of upOrder){ if(m(id)!==null){anchor=id;break;} }
 
-  // Run calculation
-  if(anchor==='__theory__'){
-    // No measurements — calculate everything from theory
-    forwardFrom('hub', hubTheory);
+  const theory={};
+  theory['hub']=hubTheory; 
+  if(anchor===null){
+    propagateFwd('hub',hubTheory,theory);
+  } else if(anchor==='hub'){
+    propagateFwd('hub',m('hub'),theory);
+    theory['hub']=hubTheory; 
   } else {
-    // Determine if anchor is upstream or downstream of hub
-    const upstreamOrder = ['hub',`${br}1_in`,`${br}1_pass`,`${br}2_in`,`${br}2_pass`,`${br}3_in`,`${br}3_pass`,`${br}4_in`];
-    const isUpstream = upstreamOrder.includes(anchor);
-
-    if(isUpstream){
-      // Anchor is upstream: propagate forward
-      if(anchor!=='hub') E[anchor] = anchorBase;
-      // Fill from hub theory for everything upstream of anchor
-      forwardFrom('hub', hubTheory);
-      // Then override from anchor forward (anchor's measured propagates downstream)
-      E[anchor] = anchorBase;
-      // Re-propagate from anchor forward, overriding theory
-      const reE = {};
-      reE[anchor] = anchorBase;
-      function reForward(from, v){
-        if(from===`${br}1_in`||from==='hub'){
-          if(from==='hub') reE[`${br}1_in`] = v - fib('hc1');
-          const c1 = reE[`${br}1_in`] ?? E[`${br}1_in`];
-          if(c1!==undefined){reE[`${br}1_pass`]=c1-spP(0); reE[`${br}1_onu`]=c1-spT(0)-sp18;}
-        }
-        const c1p = reE[`${br}1_pass`];
-        if(c1p!==undefined){
-          reE[`${br}2_in`]=c1p-fib('c1c2');
-          const c2=reE[`${br}2_in`];
-          if(c2!==undefined){reE[`${br}2_pass`]=c2-spP(1);reE[`${br}2_onu`]=c2-spT(1)-sp18;}
-        }
-        const c2p=reE[`${br}2_pass`];
-        if(c2p!==undefined){
-          reE[`${br}3_in`]=c2p-fib('c2c3');
-          const c3=reE[`${br}3_in`];
-          if(c3!==undefined){reE[`${br}3_pass`]=c3-spP(2);reE[`${br}3_onu`]=c3-spT(2)-sp18;}
-        }
-        const c3p=reE[`${br}3_pass`];
-        if(c3p!==undefined){
-          reE[`${br}4_in`]=c3p-fib('c3c4');
-          const c4=reE[`${br}4_in`];
-          if(c4!==undefined) reE[`${br}4_onu`]=c4-sp18;
-        }
-      }
-      reForward(anchor, anchorBase);
-      // Merge reE into E (reE wins for downstream of anchor)
-      Object.assign(E, reE);
-    } else {
-      // Anchor is a _onu node — propagate backward then forward
-      backwardFrom(anchor, anchorBase);
-      forwardFrom('hub', E['hub']??hubTheory);
-    }
-    // Always keep hub = theoretical
-    E['hub'] = hubTheory;
+    propagateBwd(anchor,m(anchor),theory);
+    theory['hub']=hubTheory; 
+    propagateFwd('hub',hubTheory,theory);
+    const anchorFwd={};
+    propagateFwd(anchor,m(anchor),anchorFwd);
+    Object.assign(theory,anchorFwd);
+    theory['hub']=hubTheory;
   }
 
-  // Real anchor for display (most upstream measured, or null if using theory)
-  const displayAnchor = anchor==='__theory__' ? null : anchor;
+  // ── FROM-MEASUREMENT chain ───────────────────────────────────
+  const fromMeas = {};
+  fromMeas['hub'] = hubTheory;
+  let curState = m('hub') !== null ? m('hub') : hubTheory;
 
-  return { expected:E, anchor:displayAnchor, hubTheory };
+  function resolveCTO(ctoNum, prevPassState, fibLoss) {
+    const idIn = `${br}${ctoNum}_in`;
+    const idPass = `${br}${ctoNum}_pass`;
+    const idOnu = `${br}${ctoNum}_onu`;
+    
+    // 1. Predicciones llegando a esta CTO (para la UI)
+    fromMeas[idIn] = prevPassState - fibLoss;
+    if (ctoNum < 4) {
+      fromMeas[idPass] = fromMeas[idIn] - spP(ctoNum-1);
+      fromMeas[idOnu]  = fromMeas[idIn] - spT(ctoNum-1) - sp18;
+    } else {
+      fromMeas[idOnu]  = fromMeas[idIn] - sp18;
+    }
+    
+    // 2. Determinar la realidad física en la entrada (para propagar)
+    let trueIn = fromMeas[idIn];
+    if (m(idIn) !== null) {
+      trueIn = m(idIn);
+    } else if (m(idOnu) !== null) {
+      trueIn = ctoNum === 4 ? m(idOnu) + sp18 : m(idOnu) + spT(ctoNum-1) + sp18;
+    } else if (ctoNum < 4 && m(idPass) !== null) {
+      trueIn = m(idPass) + spP(ctoNum-1);
+    }
+    
+    // 3. Estado de salida hacia la próxima CTO
+    let outPass = null;
+    if (ctoNum < 4) {
+      if (m(idPass) !== null) {
+        outPass = m(idPass);
+      } else {
+        outPass = trueIn - spP(ctoNum-1);
+      }
+    }
+    return outPass;
+  }
+
+  curState = resolveCTO(1, curState, fib('hc1'));
+  curState = resolveCTO(2, curState, fib('c1c2'));
+  curState = resolveCTO(3, curState, fib('c2c3'));
+  resolveCTO(4, curState, fib('c3c4'));
+
+  return { theory, fromMeas, anchor, hubTheory };
 }
-
 // ── Delta badge ───────────────────────────────────────────────
 function fieldDeltaBadge(expected, measured){
   if(measured===null||measured===undefined) return null;
@@ -3518,7 +3511,7 @@ function renderFieldView(){
   if(!container) return;
   container.innerHTML='';
   const br = FIELD.activeBr;
-  const {expected, anchor, hubTheory} = fieldCalc(br);
+  const {theory, fromMeas, anchor, hubTheory} = fieldCalc(br);
   const chain = fieldChain(br);
   const s = STATE.desbal;
   const rr = s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
@@ -3572,7 +3565,7 @@ function renderFieldView(){
     const {id, label, sublabel, kind} = node;
     const rawMeasured = FIELD.measured[id] !== undefined ? FIELD.measured[id] : null;
     const hasMeasured = rawMeasured !== null;
-    const calcVal = expected[id]; // propagated value
+    const calcVal = theory[id]??null; // propagated value (theory)
     // For hub: expected is always theoretical
     const expectedVal = (id==='hub') ? hubTheory : (hasMeasured ? calcVal : null);
     // What to show as "expected": if measured, expected is the propagated calc
@@ -3699,6 +3692,7 @@ function renderFieldView(){
     return d;
   }
 
+  const segKeys=['hc1','c1c2','c2c3','c3c4'];
   const segMap={'hc1':'Hub → CTO1','c1c2':'CTO1→CTO2','c2c3':'CTO2→CTO3','c3c4':'CTO3→CTO4'};
   const brColor = COL.branch[br];
 
@@ -3739,31 +3733,33 @@ function renderFieldView(){
     groupCard.appendChild(ctoHdr);
 
     nodes.forEach((node,ni)=>{
-      // Make a simplified sub-row (not full card, but inline row inside the group card)
       const {id,label,sublabel,kind} = node;
       const rawMeasured = FIELD.measured[id]!==undefined ? FIELD.measured[id] : null;
       const hasMeasured = rawMeasured!==null;
-      const calcVal = expected[id];
-      const showExpected = calcVal;
-      const isAnchor = id===anchor;
-      const badge = hasMeasured ? fieldDeltaBadge(showExpected, rawMeasured) : null;
+      const theoryVal  = theory[id]??null;
+      const fromMeasVal= fromMeas[id]??null;
+      const isAnchor   = id===anchor;
+
+      // Delta vs theory (anchor-based)
+      const badgeVsTheory  = hasMeasured ? fieldDeltaBadge(theoryVal,  rawMeasured) : null;
+      // Delta vs fromMeas (measurement-propagated)
+      const badgeVsMeas    = hasMeasured ? fieldDeltaBadge(fromMeasVal, rawMeasured) : null;
 
       if(ni>0){
         const div=document.createElement('div'); div.style.cssText='height:1px;background:#f1f5f9'; groupCard.appendChild(div);
       }
 
-      // Sub-row color
-      let rowBg='white', leftBar;
+      // Left bar color
+      let leftBar;
       if(isAnchor) leftBar='#f97316';
-      else if(hasMeasured) leftBar = badge?badge.color:'#94a3b8';
-      else if(calcVal!==null) leftBar='#3b82f6';
+      else if(hasMeasured) leftBar = badgeVsTheory?badgeVsTheory.color:'#94a3b8';
+      else if(theoryVal!==null||fromMeasVal!==null) leftBar='#3b82f6';
       else leftBar='#e5e7eb';
 
       const row=document.createElement('div');
-      row.style.cssText=`display:flex;align-items:stretch;background:${rowBg};cursor:pointer;position:relative`;
+      row.style.cssText=`display:flex;align-items:stretch;background:white;cursor:pointer;position:relative`;
       row.onclick=()=>fieldOpenInput(id, label+(sublabel?' — '+sublabel:''));
 
-      // Left color bar
       const bar=document.createElement('div');
       bar.style.cssText=`width:5px;background:${leftBar};flex-shrink:0`;
       row.appendChild(bar);
@@ -3771,10 +3767,10 @@ function renderFieldView(){
       const rowContent=document.createElement('div');
       rowContent.style.cssText='flex:1;padding:12px 14px';
 
-      // Title row
+      // Title
       const titleRow2=document.createElement('div');
-      titleRow2.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
-      const kindLabel={'in':'Entrada','pass':'Salida →','onu':'Puertos clientes'}[kind]||label;
+      titleRow2.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+      const kindLabel={'in':'📥 Entrada','pass':'📤 Salida →','onu':'👥 Puertos clientes'}[kind]||label;
       const tl=document.createElement('div');
       tl.innerHTML=`<span style="font-family:var(--sans);font-size:13px;font-weight:700;color:${leftBar}">${kindLabel}</span>
         <span style="font-family:var(--mono);font-size:10px;color:#94a3b8;display:block;margin-top:1px">${sublabel}</span>`;
@@ -3786,40 +3782,76 @@ function renderFieldView(){
       }
       rowContent.appendChild(titleRow2);
 
-      // Values grid
-      const vgrid=document.createElement('div');
-      vgrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px';
+      // Three-column grid: Esp. Ancla | Esp. Medición | Medido
+      const grid=document.createElement('div');
+      grid.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px';
 
-      function valBox(lbl, v, color, isBig){
+      function valBox(lbl, v, color, bg, border, big){
         const box=document.createElement('div');
-        box.style.cssText=`background:${isBig?'#f8fafc':'#f8fafc'};border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px`;
-        box.innerHTML=`<div style="font-family:var(--mono);font-size:9.5px;color:#94a3b8;margin-bottom:3px">${lbl}</div>
-          <div style="font-family:var(--mono);font-size:${isBig?'16px':'14px'};font-weight:700;color:${color}">${v||'—'}</div>`;
+        box.style.cssText=`background:${bg||'#f8fafc'};border:1.5px solid ${border||'#e5e7eb'};border-radius:10px;padding:8px 10px`;
+        const lEl=document.createElement('div');
+        lEl.style.cssText='font-family:var(--mono);font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px';
+        lEl.textContent=lbl;
+        const vEl=document.createElement('div');
+        vEl.style.cssText=`font-family:var(--mono);font-size:${big?'15px':'13px'};font-weight:700;color:${color}`;
+        vEl.textContent=v||'—';
+        box.appendChild(lEl); box.appendChild(vEl);
         return box;
       }
 
-      const efmt=fieldFmtV(showExpected);
-      vgrid.appendChild(valBox(hasMeasured?'Esperado':'Calculado', efmt, efmt?(hasMeasured?'#374151':COL.calculated):COL.none, false));
+      const fmtV=v=>v!==null?(v>=0?'+':'')+v.toFixed(1)+' dBm':null;
 
+      // Col 1: Esperado Ancla (theory)
+      grid.appendChild(valBox(
+        '📍 Ancla',
+        fmtV(theoryVal),
+        theoryVal!==null?valC(theoryVal):'#cbd5e1',
+        theoryVal!==null?'#f0f9ff':'#f8fafc',
+        theoryVal!==null?'#bae6fd':'#e5e7eb'
+      ));
+
+      // Col 2: Esperado Medición (fromMeas)
+      // Highlight if different from theory (possible problem indicator)
+      const measDiff = (theoryVal!==null&&fromMeasVal!==null) ? Math.abs(fromMeasVal-theoryVal) : null;
+      const measDiffColor = measDiff===null?'#cbd5e1':measDiff<=1?'#059669':measDiff<=3?'#b45309':'#dc2626';
+      const measDiffBg    = measDiff===null?'#f8fafc':measDiff<=1?'#f0fdf4':measDiff<=3?'#fffbeb':'#fef2f2';
+      const measDiffBrd   = measDiff===null?'#e5e7eb':measDiff<=1?'#86efac':measDiff<=3?'#fde68a':'#fca5a5';
+      grid.appendChild(valBox(
+        '📊 Medición',
+        fmtV(fromMeasVal),
+        fromMeasVal!==null?valC(fromMeasVal):'#cbd5e1',
+        measDiffBg, measDiffBrd
+      ));
+
+      // Col 3: Medido
       if(hasMeasured){
-        const mbox=valBox('Medido', fieldFmtV(rawMeasured), '#0f172a', true);
-        mbox.style.background=badge?badge.bg+'cc':'#f8fafc';
-        mbox.style.borderColor=badge?badge.color+'66':'#e5e7eb';
-        vgrid.appendChild(mbox);
+        const mb=valBox('🔬 Medido', fmtV(rawMeasured), '#0f172a',
+          badgeVsTheory?badgeVsTheory.bg+'dd':'#f8fafc',
+          badgeVsTheory?badgeVsTheory.color+'88':'#e5e7eb', true);
+        grid.appendChild(mb);
       } else {
         const noBox=document.createElement('div');
-        noBox.style.cssText='background:white;border:1.5px dashed #e2e8f0;border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:center';
-        noBox.innerHTML=`<span style="font-family:var(--mono);font-size:11px;color:#cbd5e1">tocar →</span>`;
-        vgrid.appendChild(noBox);
+        noBox.style.cssText='background:white;border:1.5px dashed #e2e8f0;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px';
+        noBox.innerHTML=`<span style="font-family:var(--mono);font-size:9px;color:#cbd5e1;text-transform:uppercase">Medido</span><span style="font-family:var(--mono);font-size:11px;color:#e2e8f0">tocar →</span>`;
+        grid.appendChild(noBox);
       }
-      rowContent.appendChild(vgrid);
+      rowContent.appendChild(grid);
 
-      // Delta badge
-      if(badge){
-        const badgeEl=document.createElement('div');
-        badgeEl.style.cssText=`margin-top:8px;padding:6px 10px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;color:${badge.color};background:${badge.bg}`;
-        badgeEl.textContent=`${badge.txt}  ${badge.icon}`;
-        rowContent.appendChild(badgeEl);
+      // Delta badge — vs theory
+      if(badgeVsTheory){
+        const wrap=document.createElement('div');
+        wrap.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px';
+        const b1=document.createElement('div');
+        b1.style.cssText=`padding:6px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:${badgeVsTheory.color};background:${badgeVsTheory.bg}`;
+        b1.textContent=`vs Ancla: ${badgeVsTheory.txt} ${badgeVsTheory.icon}`;
+        wrap.appendChild(b1);
+        if(badgeVsMeas&&fromMeasVal!==null&&Math.abs(fromMeasVal-theoryVal||0)>0.1){
+          const b2=document.createElement('div');
+          b2.style.cssText=`padding:6px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:${badgeVsMeas.color};background:${badgeVsMeas.bg}`;
+          b2.textContent=`vs Medición: ${badgeVsMeas.txt} ${badgeVsMeas.icon}`;
+          wrap.appendChild(b2);
+        }
+        rowContent.appendChild(wrap);
       }
 
       row.appendChild(rowContent);
