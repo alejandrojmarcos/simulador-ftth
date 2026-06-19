@@ -3234,133 +3234,239 @@ function closePON(){
 // FIELD TECHNICIAN VIEW — vertical tree, mobile-first
 // ════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+// FIELD TECHNICIAN VIEW — bidirectional cascade, anchor-based
+// ══════════════════════════════════════════════════════════════
+
 const FIELD = {
-  patchLoss: 0.3,
-  measured: {},    // pointId -> raw dBm entered by tech
+  measured: {},  // nodeId -> raw dBm
   activeBr: 'a',
   len: { a:{hc1:null,c1c2:null,c2c3:null,c3c4:null}, b:{hc1:null,c1c2:null,c2c3:null,c3c4:null} },
 };
 
 function fieldLenGet(br,seg){
-  return FIELD.len[br][seg]!==null ? FIELD.len[br][seg] : STATE.desbal.len[br][seg];
+  return FIELD.len[br][seg] !== null ? FIELD.len[br][seg] : STATE.desbal.len[br][seg];
 }
 
-// ── Physics helpers ──────────────────────────────────────
-function fieldPhysics(){
-  const s=STATE.desbal;
-  const sp18=s.ls8+s.ls8e;
-  const sp2exc=s.ls2e||0.2;
-  function spP(r){ return -(10*Math.log10(r/100))+sp2exc; }
-  function spT(r){ return -(10*Math.log10((100-r)/100))+sp2exc; }
-  function fiber(br,seg){ return fiberLoss(fieldLenGet(br,seg),'desbal'); }
-  const rr = (br) => s.indep ? [s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]] : [s.r1a,s.r2a,s.r3a];
-  return {sp18,spP,spT,fiber,rr};
+// ── Physics ──────────────────────────────────────────────────
+function fieldPhysics(br){
+  const s = STATE.desbal;
+  const sp18  = s.ls8 + s.ls8e;
+  const sp2ex = s.ls2e || 0.2;
+  const r = s.indep ? [s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]] : [s.r1a,s.r2a,s.r3a];
+  function spP(i){ return -(10*Math.log10(r[i]/100)) + sp2ex; }       // loss through "pass" port
+  function spT(i){ return -(10*Math.log10((100-r[i])/100)) + sp2ex; } // loss through "tap" port
+  function fib(seg){ return fiberLoss(fieldLenGet(br,seg),'desbal'); }
+  // theoretical hub output
+  const hubTheory = (s.hubOutPower!==null&&s.hubOutPower!==undefined)
+    ? s.hubOutPower : (s.olt - (s.lh + s.lhe));
+  return {sp18, spP, spT, fib, hubTheory};
 }
 
-// ── All node ids in order ────────────────────────────────
-function fieldNodeIds(br){
+// ── Node chain order for a branch ────────────────────────────
+// Each entry: { id, label, sublabel, kind }
+// kind: 'hub' | 'in' | 'pass' | 'onu'
+function fieldChain(br){
   return [
-    'hub',
-    `${br}1_in`, `${br}1_pass`, `${br}1_onu`,
-    `${br}2_in`, `${br}2_pass`, `${br}2_onu`,
-    `${br}3_in`, `${br}3_pass`, `${br}3_onu`,
-    `${br}4_in`,                `${br}4_onu`,
+    {id:'hub',         label:'HUB SP 1×2',    sublabel:'Salida rama '+br.toUpperCase(), kind:'hub'},
+    {id:`${br}1_in`,   label:'CTO 1 — Entrada',sublabel:'fibra desde HUB',              kind:'in',   cto:1},
+    {id:`${br}1_pass`, label:'CTO 1 — Salida', sublabel:`${STATE.desbal.r1a}% → CTO 2`, kind:'pass', cto:1},
+    {id:`${br}1_onu`,  label:'CTO 1 — Clientes',sublabel:'SP 1×8 bajada',               kind:'onu',  cto:1},
+    {id:`${br}2_in`,   label:'CTO 2 — Entrada',sublabel:'fibra desde CTO 1',            kind:'in',   cto:2},
+    {id:`${br}2_pass`, label:'CTO 2 — Salida', sublabel:`${STATE.desbal.r2a}% → CTO 3`, kind:'pass', cto:2},
+    {id:`${br}2_onu`,  label:'CTO 2 — Clientes',sublabel:'SP 1×8 bajada',               kind:'onu',  cto:2},
+    {id:`${br}3_in`,   label:'CTO 3 — Entrada',sublabel:'fibra desde CTO 2',            kind:'in',   cto:3},
+    {id:`${br}3_pass`, label:'CTO 3 — Salida', sublabel:`${STATE.desbal.r3a}% → CTO 4`, kind:'pass', cto:3},
+    {id:`${br}3_onu`,  label:'CTO 3 — Clientes',sublabel:'SP 1×8 bajada',               kind:'onu',  cto:3},
+    {id:`${br}4_in`,   label:'CTO 4 — Entrada',sublabel:'fibra desde CTO 3',            kind:'in',   cto:4},
+    {id:`${br}4_onu`,  label:'CTO 4 — Clientes',sublabel:'SP 1×8 bajada (terminal)',    kind:'onu',  cto:4},
   ];
 }
 
-// ── Calculate expected values from a given base point ────
-// base: { id, value } — the reference point (corrected for patchcord)
-// returns map of id -> expected dBm for all downstream nodes
+// ── Main calc ────────────────────────────────────────────────
+// Returns { expected:{id->dBm}, anchor:id|null }
+// Rules:
+//   - All measured values are stored forever and always shown
+//   - "anchor" = the measured node closest UPSTREAM to each node
+//   - From anchor, propagate FORWARD with losses (downstream)
+//   - From anchor, propagate BACKWARD with inverse losses (upstream)
+//   - If multiple measurements, each measured node becomes an anchor for downstream
+//   - Hub expected = always theoretical (config)
 function fieldCalc(br){
-  // Raw measured value is the base — no patchcord compensation applied here
-  function meas(id){ const v=FIELD.measured[id]; return v!==undefined?v:null; }
+  const {sp18,spP,spT,fib,hubTheory} = fieldPhysics(br);
+  const chain = fieldChain(br);
+  const ids   = chain.map(n=>n.id);
+  const m     = id => (FIELD.measured[id] !== undefined ? FIELD.measured[id] : null);
 
-  const {sp18,spP,spT,fiber,rr} = fieldPhysics();
-  const r = rr(br);
-  const E = {};
+  // Step 1: populate "base" values — measured where available
+  const val = {}; // id -> dBm or null
+  ids.forEach(id=>{ val[id] = m(id); });
 
-  // Each segment: if tech measured here, that IS the value. Otherwise propagate from previous.
-  // The chain: hub -> 1_in -> 1_pass / 1_onu -> 2_in -> 2_pass / 2_onu -> ... -> 4_in -> 4_onu
+  // Step 2: hub expected is always theoretical
+  // If hub is NOT measured, val['hub'] = null → no upstream propagation possible
+  // But we can still propagate backward from any measured downstream node
 
-  // Helper: propagate one step with a loss
-  function step(val, loss){ return (val===null||val<=INF+5) ? null : val - loss; }
+  // Step 3: forward propagation
+  // For each pair of consecutive nodes, if val[prev] is known and val[curr] is null,
+  // compute val[curr] from the loss
+  function stepForward(fromId, toId, loss){
+    if(val[toId]===null && val[fromId]!==null)
+      val[toId] = val[fromId] - loss;
+  }
 
-  // Find base: use measured value if available, otherwise propagate from previous
-  // We iterate the full chain top to bottom
-  let hubVal   = meas('hub');
-  let c1in_val = meas(`${br}1_in`)  ?? step(hubVal, fiber(br,'hc1'));
-  let c1pass   = meas(`${br}1_pass`)?? step(c1in_val, spP(r[0]));
-  let c1onu    = meas(`${br}1_onu`) ?? step(c1in_val, spT(r[0]) + sp18);
+  // Losses between consecutive chain nodes
+  function chainLoss(i){
+    const from = chain[i], to = chain[i+1];
+    if(!from||!to) return 0;
+    if(from.kind==='hub'   && to.kind==='in'  ) return fib('hc1');
+    if(from.kind==='in'    && to.kind==='pass') return spP(to.cto-1);
+    if(from.kind==='in'    && to.kind==='onu' ) return spT(to.cto-1) + sp18;
+    if(from.kind==='pass'  && to.kind==='in'  ) return fib({2:'c1c2',3:'c2c3',4:'c3c4'}[to.cto]);
+    if(from.kind==='pass'  && to.kind==='onu' ) return spT(from.cto-1) + sp18; // shouldn't happen
+    if(from.kind==='in'    && to.kind==='onu' && from.cto===4) return sp18;
+    return 0;
+  }
 
-  let c2in_val = meas(`${br}2_in`)  ?? step(c1pass, fiber(br,'c1c2'));
-  let c2pass   = meas(`${br}2_pass`)?? step(c2in_val, spP(r[1]));
-  let c2onu    = meas(`${br}2_onu`) ?? step(c2in_val, spT(r[1]) + sp18);
+  // But chain is linear — each node maps to exactly one next:
+  // hub -> 1_in -> 1_pass  (and 1_in -> 1_onu as a branch)
+  //              -> 2_in  -> 2_pass -> ...
+  // We handle branches specially
 
-  let c3in_val = meas(`${br}3_in`)  ?? step(c2pass, fiber(br,'c2c3'));
-  let c3pass   = meas(`${br}3_pass`)?? step(c3in_val, spP(r[2]));
-  let c3onu    = meas(`${br}3_onu`) ?? step(c3in_val, spT(r[2]) + sp18);
+  function lossForward(fromId, toId){
+    const fi = ids.indexOf(fromId), ti = ids.indexOf(toId);
+    if(fi<0||ti<0) return null;
+    // Direct adjacent
+    const from = chain[fi], to = chain[ti];
+    if(from.kind==='hub'   && to.id===`${br}1_in`)   return fib('hc1');
+    if(from.kind==='in'    && to.kind==='pass')        return spP(from.cto-1);
+    if(from.kind==='in'    && to.kind==='onu')         return spT(from.cto-1) + sp18;
+    if(from.kind==='pass'  && to.kind==='in'){
+      const seg=['c1c2','c2c3','c3c4'][to.cto-2];
+      return seg ? fib(seg) : null;
+    }
+    if(from.kind==='in'    && to.kind==='onu' && from.cto===4) return sp18;
+    return null;
+  }
 
-  let c4in_val = meas(`${br}4_in`)  ?? step(c3pass, fiber(br,'c3c4'));
-  let c4onu    = meas(`${br}4_onu`) ?? step(c4in_val, sp18);
+  function lossBackward(toId, fromId){
+    const l = lossForward(fromId, toId);
+    return l; // same magnitude, reversed sign when applying
+  }
 
-  // Only populate E for nodes that have a calculated value
-  // (i.e. there's at least one measurement upstream)
-  function setE(id, val){ if(val!==null) E[id]=val; }
+  // Forward pass: go through chain in order, propagate from each known value
+  // Do multiple passes to ensure full propagation
+  for(let pass=0; pass<3; pass++){
+    // hub -> 1_in
+    if(val[`${br}1_in`]===null && val['hub']!==null)
+      val[`${br}1_in`] = val['hub'] - fib('hc1');
+    // 1_in -> 1_pass, 1_onu
+    if(val[`${br}1_in`]!==null){
+      if(val[`${br}1_pass`]===null) val[`${br}1_pass`] = val[`${br}1_in`] - spP(0);
+      if(val[`${br}1_onu`]===null)  val[`${br}1_onu`]  = val[`${br}1_in`] - spT(0) - sp18;
+    }
+    // 1_pass -> 2_in
+    if(val[`${br}2_in`]===null && val[`${br}1_pass`]!==null)
+      val[`${br}2_in`] = val[`${br}1_pass`] - fib('c1c2');
+    if(val[`${br}2_in`]!==null){
+      if(val[`${br}2_pass`]===null) val[`${br}2_pass`] = val[`${br}2_in`] - spP(1);
+      if(val[`${br}2_onu`]===null)  val[`${br}2_onu`]  = val[`${br}2_in`] - spT(1) - sp18;
+    }
+    if(val[`${br}3_in`]===null && val[`${br}2_pass`]!==null)
+      val[`${br}3_in`] = val[`${br}2_pass`] - fib('c2c3');
+    if(val[`${br}3_in`]!==null){
+      if(val[`${br}3_pass`]===null) val[`${br}3_pass`] = val[`${br}3_in`] - spP(2);
+      if(val[`${br}3_onu`]===null)  val[`${br}3_onu`]  = val[`${br}3_in`] - spT(2) - sp18;
+    }
+    if(val[`${br}4_in`]===null && val[`${br}3_pass`]!==null)
+      val[`${br}4_in`] = val[`${br}3_pass`] - fib('c3c4');
+    if(val[`${br}4_in`]!==null){
+      if(val[`${br}4_onu`]===null) val[`${br}4_onu`] = val[`${br}4_in`] - sp18;
+    }
+  }
 
-  if(hubVal!==null) setE('hub', hubVal);
-  setE(`${br}1_in`,   c1in_val);
-  setE(`${br}1_pass`, c1pass);
-  setE(`${br}1_onu`,  c1onu);
-  setE(`${br}2_in`,   c2in_val);
-  setE(`${br}2_pass`, c2pass);
-  setE(`${br}2_onu`,  c2onu);
-  setE(`${br}3_in`,   c3in_val);
-  setE(`${br}3_pass`, c3pass);
-  setE(`${br}3_onu`,  c3onu);
-  setE(`${br}4_in`,   c4in_val);
-  setE(`${br}4_onu`,  c4onu);
+  // Backward pass: if a downstream node is measured but upstream is null, invert
+  for(let pass=0; pass<3; pass++){
+    if(val[`${br}1_in`]===null && val[`${br}1_pass`]!==null)
+      val[`${br}1_in`] = val[`${br}1_pass`] + spP(0);
+    if(val[`${br}1_in`]===null && val[`${br}1_onu`]!==null)
+      val[`${br}1_in`] = val[`${br}1_onu`] + spT(0) + sp18;
+    if(val['hub']===null && val[`${br}1_in`]!==null)
+      val['hub'] = val[`${br}1_in`] + fib('hc1');
 
-  // Base = first measured node
-  const order = fieldNodeIds(br);
-  let base = null;
-  for(const id of order){ if(meas(id)!==null){ base={id,value:meas(id)}; break; } }
+    if(val[`${br}2_in`]===null && val[`${br}2_pass`]!==null)
+      val[`${br}2_in`] = val[`${br}2_pass`] + spP(1);
+    if(val[`${br}2_in`]===null && val[`${br}2_onu`]!==null)
+      val[`${br}2_in`] = val[`${br}2_onu`] + spT(1) + sp18;
+    if(val[`${br}1_pass`]===null && val[`${br}2_in`]!==null)
+      val[`${br}1_pass`] = val[`${br}2_in`] + fib('c1c2');
+    if(val[`${br}1_in`]===null && val[`${br}1_pass`]!==null)
+      val[`${br}1_in`] = val[`${br}1_pass`] + spP(0);
+    if(val['hub']===null && val[`${br}1_in`]!==null)
+      val['hub'] = val[`${br}1_in`] + fib('hc1');
 
-  return {expected:E, base};
+    if(val[`${br}3_in`]===null && val[`${br}3_pass`]!==null)
+      val[`${br}3_in`] = val[`${br}3_pass`] + spP(2);
+    if(val[`${br}3_in`]===null && val[`${br}3_onu`]!==null)
+      val[`${br}3_in`] = val[`${br}3_onu`] + spT(2) + sp18;
+    if(val[`${br}2_pass`]===null && val[`${br}3_in`]!==null)
+      val[`${br}2_pass`] = val[`${br}3_in`] + fib('c2c3');
+    if(val[`${br}2_in`]===null && val[`${br}2_pass`]!==null)
+      val[`${br}2_in`] = val[`${br}2_pass`] + spP(1);
+
+    if(val[`${br}4_in`]===null && val[`${br}4_onu`]!==null)
+      val[`${br}4_in`] = val[`${br}4_onu`] + sp18;
+    if(val[`${br}3_pass`]===null && val[`${br}4_in`]!==null)
+      val[`${br}3_pass`] = val[`${br}4_in`] + fib('c3c4');
+    if(val[`${br}3_in`]===null && val[`${br}3_pass`]!==null)
+      val[`${br}3_in`] = val[`${br}3_pass`] + spP(2);
+  }
+
+  // Hub expected is ALWAYS the theoretical value (from config)
+  // We use hubTheory for the hub's "expected" display
+  // val['hub'] is the calculated/measured value used for propagation
+
+  // Determine anchor: the measured node that is most upstream
+  let anchor = null;
+  for(const node of chain){
+    if(m(node.id)!==null){ anchor = node.id; break; }
+  }
+  // If only downstream nodes measured, anchor = most upstream measured
+  if(!anchor){
+    for(let i=chain.length-1;i>=0;i--){
+      if(m(chain[i].id)!==null){ anchor = chain[i].id; break; }
+    }
+  }
+
+  return { val, anchor, hubTheory };
 }
 
-// ── Format helpers ───────────────────────────────────────
-function fieldFmt(v){
-  if(v===null||v===undefined||v<=INF+5) return null;
-  return (v>=0?'+':'')+v.toFixed(1)+' dBm';
-}
-function fieldColor(v){
-  if(v===null||v===undefined||v<=INF+5) return '#dc2626';
-  return valC(v);
-}
-function fieldDelta(expectedV, rawMeasured, noPatch){
-  if(rawMeasured===undefined||rawMeasured===null) return null;
-  if(expectedV===null||expectedV===undefined||expectedV<=INF+5) return null;
-  const d = rawMeasured - expectedV;
+// ── Delta badge ───────────────────────────────────────────────
+function fieldDeltaBadge(expected, measured){
+  if(measured===null||measured===undefined) return null;
+  if(expected===null||expected===undefined) return null;
+  const d = measured - expected;
   const abs = Math.abs(d);
   const sign = d>=0?'+':'';
   const txt = `${sign}${d.toFixed(1)} dB`;
   if(abs<=1.0) return {txt, color:'#15803d', bg:'#dcfce7', icon:'✓'};
   if(abs<=2.5) return {txt, color:'#b45309', bg:'#fef3c7', icon:'⚠'};
-  return           {txt, color:'#dc2626',  bg:'#fee2e2', icon:'✗'};
+  return            {txt, color:'#dc2626',  bg:'#fee2e2', icon:'✗'};
 }
 
-// ── Input modal ──────────────────────────────────────────
+function fieldFmtV(v){
+  if(v===null||v===undefined) return null;
+  return (v>=0?'+':'')+v.toFixed(1)+' dBm';
+}
+
+// ── Input modal ───────────────────────────────────────────────
 let fieldActivePoint=null;
 
-function fieldOpenInput(pointId, label, expectedV, noPatch){
-  fieldActivePoint={pointId,label,expectedV,noPatch};
-  const modal=document.getElementById('field-input-modal');
-  document.getElementById('field-input-lbl').textContent=label;
-  const ef=fieldFmt(expectedV);
-  document.getElementById('field-input-exp').textContent=ef?'Esperado: '+ef:'Sin referencia aún';
-  const inp=document.getElementById('field-input-val');
-  inp.value=FIELD.measured[pointId]!==undefined?FIELD.measured[pointId]:'';
-  modal.style.display='flex';
+function fieldOpenInput(nodeId, label){
+  fieldActivePoint = nodeId;
+  document.getElementById('field-input-lbl').textContent = label;
+  const inp = document.getElementById('field-input-val');
+  inp.value = FIELD.measured[nodeId]!==undefined ? FIELD.measured[nodeId] : '';
+  document.getElementById('field-input-modal').style.display='flex';
   setTimeout(()=>inp.focus(),80);
 }
 function fieldCloseInput(){
@@ -3369,263 +3475,379 @@ function fieldCloseInput(){
 }
 function fieldSaveInput(){
   if(!fieldActivePoint) return;
-  const raw=document.getElementById('field-input-val').value.replace(',','.');
-  const n=parseFloat(raw);
-  if(!isNaN(n)) FIELD.measured[fieldActivePoint.pointId]=n;
+  const raw = document.getElementById('field-input-val').value.replace(',','.');
+  const n = parseFloat(raw);
+  if(!isNaN(n)) FIELD.measured[fieldActivePoint]=n;
   fieldCloseInput(); renderFieldView();
 }
 function fieldClearInput(){
   if(!fieldActivePoint) return;
-  delete FIELD.measured[fieldActivePoint.pointId];
+  delete FIELD.measured[fieldActivePoint];
   document.getElementById('field-input-val').value='';
   fieldCloseInput(); renderFieldView();
 }
-function fieldInputAppend(ch){
-  const inp=document.getElementById('field-input-val'); if(!inp) return;
-  if(ch==='-'){ inp.value=inp.value.startsWith('-')?inp.value.slice(1):'-'+inp.value; return; }
-  if(ch==='.'&&inp.value.includes('.')) return;
-  inp.value+=ch;
-}
-function fieldInputBackspace(){
-  const inp=document.getElementById('field-input-val'); if(!inp) return;
-  inp.value=inp.value.slice(0,-1);
-}
 
-// ── Render ───────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────
 function renderFieldView(){
-  const container=document.getElementById('field-tree');
+  const container = document.getElementById('field-tree');
   if(!container) return;
   container.innerHTML='';
-  const br=FIELD.activeBr;
-  const s=STATE.desbal;
-  const rr=s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
-  const {expected,base}=fieldCalc(br);
+  const br = FIELD.activeBr;
+  const {val, anchor, hubTheory} = fieldCalc(br);
+  const chain = fieldChain(br);
+  const s = STATE.desbal;
+  const rr = s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
 
-  const brColor={a:'#1e40af',b:'#065f46'};
+  // Colors
+  const COL = {
+    hub:      '#c2410c',  // orange-red
+    anchor:   '#7c2d12',  // dark brown-red for anchor badge bg
+    measured_ok:   '#15803d',
+    measured_warn: '#b45309',
+    measured_bad:  '#dc2626',
+    calculated:    '#1d4ed8',
+    none:          '#94a3b8',
+    branch:   {a:'#1e40af', b:'#065f46'},
+  };
 
-  // ── No reference yet banner ──
-  if(!base){
-    const banner=document.createElement('div');
-    banner.style.cssText='background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;'+
-      'padding:14px;font-family:var(--mono);font-size:11px;color:#92400e;margin-bottom:16px;text-align:center;line-height:1.6';
-    banner.innerHTML='<b>Sin referencia de potencia</b><br>Tocá cualquier nodo e ingresá<br>el valor medido para empezar.';
+  // Banner if no data
+  const hasMeasurements = Object.keys(FIELD.measured).length > 0;
+  if(!hasMeasurements){
+    const banner = document.createElement('div');
+    banner.style.cssText='background:#1e293b;border-radius:14px;padding:20px;text-align:center;margin-bottom:16px;color:white';
+    banner.innerHTML=`<div style="font-size:28px;margin-bottom:8px">📡</div>
+      <div style="font-family:var(--sans);font-size:14px;font-weight:700;margin-bottom:6px">Sin mediciones</div>
+      <div style="font-family:var(--mono);font-size:11px;color:#94a3b8;line-height:1.6">
+        Tocá cualquier nodo para ingresar<br>el valor medido en campo.<br>
+        Podés empezar por cualquier punto<br>de la red — el sistema calcula el resto.
+      </div>`;
     container.appendChild(banner);
   }
 
-  // ── Node builder ──
-  function makeNode(id, title, subtitle, noPatch, color){
-    const raw = FIELD.measured[id];
-    const hasMeasured = raw !== undefined;
-    const expV = expected[id] ?? null;
-    const badge = hasMeasured ? fieldDelta(expV, raw, noPatch) : null;
+  // Legend
+  const legend = document.createElement('div');
+  legend.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:white;border-radius:10px;border:1px solid #e5e7eb';
+  [
+    {dot:'#f97316',txt:'Ancla activa'},
+    {dot:'#1d4ed8',txt:'Calculado'},
+    {dot:'#15803d',txt:'Medido OK'},
+    {dot:'#b45309',txt:'Medido ⚠'},
+    {dot:'#dc2626',txt:'Medido ✗'},
+    {dot:'#94a3b8',txt:'Sin dato'},
+  ].forEach(({dot,txt})=>{
+    const el=document.createElement('div');
+    el.style.cssText='display:flex;align-items:center;gap:5px';
+    el.innerHTML=`<span style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0;display:inline-block"></span><span style="font-family:var(--mono);font-size:10px;color:#374151">${txt}</span>`;
+    legend.appendChild(el);
+  });
+  container.appendChild(legend);
 
-    const node=document.createElement('div');
-    node.style.cssText=`background:white;padding:12px 14px;cursor:pointer;position:relative;user-select:none`;
-    node.onclick=()=>fieldOpenInput(id, title+(subtitle?' — '+subtitle:''), expV, noPatch);
+  // ── Node card builder ──
+  function makeCard(node){
+    const {id, label, sublabel, kind} = node;
+    const rawMeasured = FIELD.measured[id] !== undefined ? FIELD.measured[id] : null;
+    const hasMeasured = rawMeasured !== null;
+    const calcVal = val[id]; // propagated value
+    // For hub: expected is always theoretical
+    const expectedVal = (id==='hub') ? hubTheory : (hasMeasured ? calcVal : null);
+    // What to show as "expected": if measured, expected is the propagated calc
+    // If not measured, expected is the propagated calc (which IS what we'd expect to see)
+    const showExpected = calcVal;
+    const isAnchor = id === anchor;
+    const badge = hasMeasured ? fieldDeltaBadge(showExpected, rawMeasured) : null;
 
-    // Title row
-    const titleRow=document.createElement('div');
-    titleRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
-    const titleEl=document.createElement('b');
-    titleEl.style.cssText=`font-family:var(--sans);font-size:13px;color:${color}`;
-    titleEl.textContent=title;
-    const tapEl=document.createElement('span');
-    tapEl.style.cssText='font-family:var(--mono);font-size:9px;color:#cbd5e1';
-    tapEl.textContent='TAP →';
-    titleRow.appendChild(titleEl); titleRow.appendChild(tapEl);
-    node.appendChild(titleRow);
-
-    if(subtitle){
-      const sub=document.createElement('div');
-      sub.style.cssText='font-family:var(--mono);font-size:9px;color:#94a3b8;margin-bottom:6px';
-      sub.textContent=subtitle;
-      node.appendChild(sub);
+    // Card state color
+    let borderColor, headerBg;
+    if(isAnchor){
+      borderColor='#f97316'; headerBg='#f97316';
+    } else if(hasMeasured){
+      borderColor = badge ? badge.color : '#94a3b8';
+      headerBg   = badge ? badge.color : '#94a3b8';
+    } else if(calcVal!==null){
+      borderColor='#93c5fd'; headerBg='#1d4ed8';
+    } else {
+      borderColor='#e5e7eb'; headerBg='#94a3b8';
     }
 
-    // Esperado row
-    const expRow=document.createElement('div');
-    expRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:3px';
-    const expLbl=document.createElement('span');
-    expLbl.style.cssText='font-family:var(--mono);font-size:9.5px;color:#94a3b8';
-    expLbl.textContent='Esperado';
-    const expVal=document.createElement('span');
-    const ef=fieldFmt(expV);
-    expVal.style.cssText=`font-family:var(--mono);font-size:13px;font-weight:700;color:${ef?fieldColor(expV):'#cbd5e1'}`;
-    expVal.textContent=ef||'—';
-    expRow.appendChild(expLbl); expRow.appendChild(expVal);
-    node.appendChild(expRow);
+    const card = document.createElement('div');
+    card.style.cssText=`background:white;border:2.5px solid ${borderColor};border-radius:16px;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.1);cursor:pointer;transition:transform .1s;`;
+    card.onclick = ()=>fieldOpenInput(id, label);
 
-    // Medido row
-    const measRow=document.createElement('div');
-    measRow.style.cssText='display:flex;justify-content:space-between;align-items:center';
-    const measLbl=document.createElement('span');
-    measLbl.style.cssText='font-family:var(--mono);font-size:9.5px;color:#94a3b8';
-    measLbl.textContent='Medido';
-    const measVal=document.createElement('span');
-    measVal.style.cssText=`font-family:var(--mono);font-size:13px;font-weight:700;color:${hasMeasured?'#1e293b':'#e2e8f0'}`;
-    measVal.textContent=hasMeasured?(raw>=0?'+':'')+raw.toFixed(1)+' dBm':'— tocar';
-    measRow.appendChild(measLbl); measRow.appendChild(measVal);
-    node.appendChild(measRow);
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText=`background:${headerBg};padding:10px 14px;display:flex;align-items:center;justify-content:space-between`;
+    const hdrLeft = document.createElement('div');
+    const hdrTitle = document.createElement('div');
+    hdrTitle.style.cssText='font-family:var(--sans);font-size:14px;font-weight:700;color:white';
+    hdrTitle.textContent=label;
+    const hdrSub = document.createElement('div');
+    hdrSub.style.cssText='font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.75);margin-top:2px';
+    hdrSub.textContent=sublabel;
+    hdrLeft.appendChild(hdrTitle); hdrLeft.appendChild(hdrSub);
+    hdr.appendChild(hdrLeft);
+
+    // Right side of header: anchor badge or status dot
+    if(isAnchor){
+      const ab=document.createElement('span');
+      ab.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;background:white;color:#ea580c;padding:3px 10px;border-radius:20px';
+      ab.textContent='⚓ ANCLA'; hdr.appendChild(ab);
+    } else if(hasMeasured){
+      const dot=document.createElement('span');
+      dot.style.cssText=`width:12px;height:12px;border-radius:50%;background:white;opacity:.9;display:inline-block`;
+      hdr.appendChild(dot);
+    }
+    card.appendChild(hdr);
+
+    // Body
+    const body = document.createElement('div');
+    body.style.cssText='padding:14px';
+
+    // Row helper
+    function bodyRow(lbl, val, valColor, size='15px'){
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      const l=document.createElement('span');
+      l.style.cssText='font-family:var(--mono);font-size:11px;color:#64748b';
+      l.textContent=lbl;
+      const v=document.createElement('span');
+      v.style.cssText=`font-family:var(--mono);font-size:${size};font-weight:700;color:${valColor}`;
+      v.textContent=val;
+      row.appendChild(l); row.appendChild(v);
+      return row;
+    }
+
+    // Esperado
+    const efmt = fieldFmtV(showExpected);
+    body.appendChild(bodyRow(
+      hasMeasured ? 'Esperado' : 'Calculado',
+      efmt||'—',
+      efmt ? (hasMeasured ? '#374151' : COL.calculated) : COL.none,
+      '16px'
+    ));
+
+    // Medido
+    if(hasMeasured){
+      body.appendChild(bodyRow('Medido', fieldFmtV(rawMeasured)||'—', '#0f172a', '18px'));
+    } else {
+      const tapRow=document.createElement('div');
+      tapRow.style.cssText='text-align:center;padding:4px;font-family:var(--mono);font-size:11px;color:#cbd5e1;border:1.5px dashed #e2e8f0;border-radius:8px;margin-bottom:6px';
+      tapRow.textContent='— tocar para medir —';
+      body.appendChild(tapRow);
+    }
 
     // Delta badge
     if(badge){
       const badgeEl=document.createElement('div');
-      badgeEl.style.cssText=`margin-top:8px;padding:4px 10px;border-radius:8px;text-align:center;
-        font-family:var(--mono);font-size:12px;font-weight:700;color:${badge.color};background:${badge.bg}`;
-      badgeEl.textContent=`${badge.txt} ${badge.icon}`;
-      node.appendChild(badgeEl);
+      badgeEl.style.cssText=`margin-top:8px;padding:8px 12px;border-radius:10px;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700;color:${badge.color};background:${badge.bg}`;
+      badgeEl.textContent=`${badge.txt}  ${badge.icon}`;
+      body.appendChild(badgeEl);
     }
 
-    // Dot indicator
-    if(hasMeasured){
-      const dot=document.createElement('div');
-      dot.style.cssText=`position:absolute;top:10px;right:10px;width:9px;height:9px;border-radius:50%;
-        background:${badge?badge.color:'#94a3b8'}`;
-      node.appendChild(dot);
-    }
-    return node;
+    card.appendChild(body);
+    return card;
   }
 
-  // ── Divider line between CTO rows ──
-  function divider(){ const d=document.createElement('div'); d.style.cssText='height:1px;background:#f1f5f9'; return d; }
-
   // ── Distance pill ──
-  function distPill(label,br,seg){
+  function distPill(label, seg){
     const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;flex-direction:column;align-items:center';
-    const line1=document.createElement('div');
-    line1.style.cssText='width:2px;height:14px;background:#e2e8f0;margin:0 auto';
+    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;margin:0 auto';
+    const line=document.createElement('div');
+    line.style.cssText='width:3px;height:16px;background:#e2e8f0;margin:0 auto';
     const pill=document.createElement('div');
-    pill.style.cssText='display:flex;align-items:center;gap:6px;padding:4px 12px;'+
-      'background:#eef2ff;border:1px solid #c7d2fe;border-radius:20px;cursor:pointer';
-    pill.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:#6366f1">📏 ${label}</span>`+
-      `<b style="font-family:var(--mono);font-size:11px;color:#4338ca">${fieldLenGet(br,seg)} m</b>`;
+    pill.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 14px;background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:20px;cursor:pointer';
+    pill.innerHTML=`<span style="font-family:var(--mono);font-size:11px;color:#4338ca">📏 ${label}</span><b style="font-family:var(--mono);font-size:12px;color:#3730a3">${fieldLenGet(br,seg)} m</b>`;
     pill.onclick=()=>{
-      const n=prompt(`Distancia ${label} (metros):`,fieldLenGet(br,seg));
+      const n=prompt(`Distancia ${label} (m):`, fieldLenGet(br,seg));
       if(n===null) return;
       const v=parseFloat(n); if(!isNaN(v)){FIELD.len[br][seg]=v; renderFieldView();}
     };
     const line2=document.createElement('div');
-    line2.style.cssText='width:2px;height:14px;background:#e2e8f0;margin:0 auto';
-    wrap.appendChild(line1); wrap.appendChild(pill); wrap.appendChild(line2);
+    line2.style.cssText=line.style.cssText;
+    wrap.appendChild(line); wrap.appendChild(pill); wrap.appendChild(line2);
     return wrap;
   }
 
-  // ── Centered wrapper ──
-  function centered(el){ const w=document.createElement('div'); w.style.cssText='display:flex;flex-direction:column;align-items:center'; w.appendChild(el); return w; }
-
-  const segKeys =['hc1','c1c2','c2c3','c3c4'];
-  const segLabels=['Hub → CTO1','CTO1→CTO2','CTO2→CTO3','CTO3→CTO4'];
-
-  // ── HUB ──
-  const hubCard=document.createElement('div');
-  hubCard.style.cssText='width:100%;max-width:340px;border:2.5px solid #c2410c;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)';
-  const hubHdr=document.createElement('div');
-  hubHdr.style.cssText='background:#c2410c;padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:700;color:white';
-  hubHdr.textContent='HUB SP 1×2 — Salida rama '+br.toUpperCase();
-  hubCard.appendChild(hubHdr);
-  hubCard.appendChild(makeNode('hub','Salida HUB','medición directa, sin patchcord',true,'#c2410c'));
-  container.appendChild(centered(hubCard));
-
-  // ── CTOs ──
-  for(let num=1;num<=4;num++){
-    const isLast=num===4;
-    const ck=`${br}${num}`;
-
-    container.appendChild(centered(distPill(segLabels[num-1], br, segKeys[num-1])));
-
-    const card=document.createElement('div');
-    card.style.cssText=`width:100%;max-width:340px;border:2.5px solid ${brColor[br]};border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)`;
-    const hdr=document.createElement('div');
-    hdr.style.cssText=`background:${brColor[br]};padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:700;color:white`;
-    hdr.textContent='CTO '+num+(isLast?' (terminal)':'');
-    card.appendChild(hdr);
-
-    card.appendChild(makeNode(`${ck}_in`,'Entrada','fibra entrante',false,brColor[br]));
-
-    if(!isLast){
-      card.appendChild(divider());
-      card.appendChild(makeNode(`${ck}_pass`,'Salida → CTO '+(num+1),`${rr[num-1]}% continúa`,false,'#0369a1'));
-    }
-
-    card.appendChild(divider());
-    card.appendChild(makeNode(`${ck}_onu`,'Puertos clientes',`SP 1×8 — ${isLast?'todo':Math.round(100-rr[num-1])+'%'} bajada`,false,'#15803d'));
-
-    container.appendChild(centered(card));
+  // ── Connector line between cards ──
+  function connector(color){
+    const d=document.createElement('div');
+    d.style.cssText=`width:4px;height:18px;background:${color};margin:0 auto;border-radius:2px`;
+    return d;
   }
 
-  // ── Patchcord note ──
-  const note=document.createElement('div');
-  note.style.cssText='margin-top:14px;width:100%;max-width:340px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;'+
-    'padding:10px 14px;font-family:var(--mono);font-size:10px;color:#64748b;line-height:1.6';
-  note.innerHTML=`<b style="color:#374151">📌 Patchcord</b>: ${FIELD.patchLoss} dB/conector × 2 = `+
-    `<b>${(FIELD.patchLoss*2).toFixed(1)} dB</b> se descuenta de cada medición.<br>`+
-    `<span style="color:#6366f1;cursor:pointer;text-decoration:underline" onclick="`+
-    `var n=prompt('Pérdida por conector (dB):',FIELD.patchLoss);`+
-    `if(n!==null){var v=parseFloat(n);if(!isNaN(v)){FIELD.patchLoss=v;renderFieldView();}}">⚙ Cambiar</span>`;
-  container.appendChild(centered(note));
+  const segMap={'hc1':'Hub → CTO1','c1c2':'CTO1→CTO2','c2c3':'CTO2→CTO3','c3c4':'CTO3→CTO4'};
+  const brColor = COL.branch[br];
+
+  // ── Render chain ──
+  // Group: hub, then per CTO (in + pass + onu in one card)
+  // Actually render each node as its own card for maximum granularity
+  const segKeys=['hc1','c1c2','c2c3','c3c4'];
+
+  // Hub card
+  const hubNode = chain[0];
+  const hubCard2 = document.createElement('div');
+  hubCard2.style.cssText='width:100%;max-width:380px;margin:0 auto';
+  hubCard2.appendChild(makeCard(hubNode));
+  container.appendChild(hubCard2);
+
+  for(let cto=1;cto<=4;cto++){
+    const isLast=cto===4;
+    const nodes = chain.filter(n=>n.cto===cto);
+
+    // Distance pill
+    container.appendChild(distPill(segMap[segKeys[cto-1]], segKeys[cto-1]));
+
+    // CTO group card
+    const groupCard=document.createElement('div');
+    groupCard.style.cssText=`width:100%;max-width:380px;margin:0 auto;border:2.5px solid ${brColor};border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)`;
+
+    // CTO header
+    const ctoHdr=document.createElement('div');
+    ctoHdr.style.cssText=`background:${brColor};padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:700;color:white`;
+    ctoHdr.textContent=`CTO ${cto}${isLast?' (terminal)':''}`;
+    groupCard.appendChild(ctoHdr);
+
+    nodes.forEach((node,ni)=>{
+      // Make a simplified sub-row (not full card, but inline row inside the group card)
+      const {id,label,sublabel,kind} = node;
+      const rawMeasured = FIELD.measured[id]!==undefined ? FIELD.measured[id] : null;
+      const hasMeasured = rawMeasured!==null;
+      const calcVal = val[id];
+      const showExpected = calcVal;
+      const isAnchor = id===anchor;
+      const badge = hasMeasured ? fieldDeltaBadge(showExpected, rawMeasured) : null;
+
+      if(ni>0){
+        const div=document.createElement('div'); div.style.cssText='height:1px;background:#f1f5f9'; groupCard.appendChild(div);
+      }
+
+      // Sub-row color
+      let rowBg='white', leftBar;
+      if(isAnchor) leftBar='#f97316';
+      else if(hasMeasured) leftBar = badge?badge.color:'#94a3b8';
+      else if(calcVal!==null) leftBar='#3b82f6';
+      else leftBar='#e5e7eb';
+
+      const row=document.createElement('div');
+      row.style.cssText=`display:flex;align-items:stretch;background:${rowBg};cursor:pointer;position:relative`;
+      row.onclick=()=>fieldOpenInput(id, label+(sublabel?' — '+sublabel:''));
+
+      // Left color bar
+      const bar=document.createElement('div');
+      bar.style.cssText=`width:5px;background:${leftBar};flex-shrink:0`;
+      row.appendChild(bar);
+
+      const rowContent=document.createElement('div');
+      rowContent.style.cssText='flex:1;padding:12px 14px';
+
+      // Title row
+      const titleRow2=document.createElement('div');
+      titleRow2.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      const kindLabel={'in':'Entrada','pass':'Salida →','onu':'Puertos clientes'}[kind]||label;
+      const tl=document.createElement('div');
+      tl.innerHTML=`<span style="font-family:var(--sans);font-size:13px;font-weight:700;color:${leftBar}">${kindLabel}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:#94a3b8;display:block;margin-top:1px">${sublabel}</span>`;
+      titleRow2.appendChild(tl);
+      if(isAnchor){
+        const ab=document.createElement('span');
+        ab.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;background:#fff7ed;color:#ea580c;padding:2px 8px;border-radius:10px;border:1px solid #fed7aa';
+        ab.textContent='⚓ ANCLA'; titleRow2.appendChild(ab);
+      }
+      rowContent.appendChild(titleRow2);
+
+      // Values grid
+      const vgrid=document.createElement('div');
+      vgrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px';
+
+      function valBox(lbl, v, color, isBig){
+        const box=document.createElement('div');
+        box.style.cssText=`background:${isBig?'#f8fafc':'#f8fafc'};border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px`;
+        box.innerHTML=`<div style="font-family:var(--mono);font-size:9.5px;color:#94a3b8;margin-bottom:3px">${lbl}</div>
+          <div style="font-family:var(--mono);font-size:${isBig?'16px':'14px'};font-weight:700;color:${color}">${v||'—'}</div>`;
+        return box;
+      }
+
+      const efmt=fieldFmtV(showExpected);
+      vgrid.appendChild(valBox(hasMeasured?'Esperado':'Calculado', efmt, efmt?(hasMeasured?'#374151':COL.calculated):COL.none, false));
+
+      if(hasMeasured){
+        const mbox=valBox('Medido', fieldFmtV(rawMeasured), '#0f172a', true);
+        mbox.style.background=badge?badge.bg+'cc':'#f8fafc';
+        mbox.style.borderColor=badge?badge.color+'66':'#e5e7eb';
+        vgrid.appendChild(mbox);
+      } else {
+        const noBox=document.createElement('div');
+        noBox.style.cssText='background:white;border:1.5px dashed #e2e8f0;border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:center';
+        noBox.innerHTML=`<span style="font-family:var(--mono);font-size:11px;color:#cbd5e1">tocar →</span>`;
+        vgrid.appendChild(noBox);
+      }
+      rowContent.appendChild(vgrid);
+
+      // Delta badge
+      if(badge){
+        const badgeEl=document.createElement('div');
+        badgeEl.style.cssText=`margin-top:8px;padding:6px 10px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;color:${badge.color};background:${badge.bg}`;
+        badgeEl.textContent=`${badge.txt}  ${badge.icon}`;
+        rowContent.appendChild(badgeEl);
+      }
+
+      row.appendChild(rowContent);
+      groupCard.appendChild(row);
+    });
+
+    container.appendChild(groupCard);
+  }
 }
 
-// ── Input modal ──────────────────────────────────────────
+// ── Input modal ───────────────────────────────────────────────
 function buildFieldModal(){
   if(document.getElementById('field-input-modal')) return;
   const modal=document.createElement('div');
   modal.id='field-input-modal';
-  modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);'+
-    'z-index:2000;align-items:flex-end;justify-content:center';
+  modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;align-items:flex-end;justify-content:center';
   modal.innerHTML=`
-    <div style="background:white;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;box-sizing:border-box">
-      <div id="field-input-lbl" style="font-family:var(--sans);font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px"></div>
-      <div id="field-input-exp" style="font-family:var(--mono);font-size:11px;color:#64748b;margin-bottom:16px"></div>
+    <div style="background:white;border-radius:24px 24px 0 0;padding:28px 24px 44px;width:100%;max-width:480px;box-sizing:border-box">
+      <div id="field-input-lbl" style="font-family:var(--sans);font-size:17px;font-weight:700;color:#1e293b;margin-bottom:16px"></div>
       <input id="field-input-val" type="text" inputmode="text"
-        style="width:100%;padding:16px;border:2px solid #6366f1;border-radius:12px;box-sizing:border-box;
-        font-family:var(--mono);font-size:24px;text-align:center;outline:none;margin-bottom:14px" placeholder="-12.5">
+        style="width:100%;padding:18px;border:2.5px solid #6366f1;border-radius:14px;box-sizing:border-box;
+        font-family:var(--mono);font-size:28px;text-align:center;outline:none;margin-bottom:16px;color:#1e293b"
+        placeholder="-12.5">
       <div style="display:flex;gap:8px">
-        <button onclick="fieldClearInput()" style="flex:1;padding:14px;border-radius:10px;border:1.5px solid #e5e7eb;
-          background:white;font-family:var(--mono);font-size:13px;color:#64748b;cursor:pointer">🗑 Borrar</button>
-        <button onclick="fieldCloseInput()" style="flex:1;padding:14px;border-radius:10px;border:1.5px solid #e5e7eb;
-          background:white;font-family:var(--mono);font-size:13px;color:#64748b;cursor:pointer">Cancelar</button>
-        <button onclick="fieldSaveInput()" style="flex:2;padding:14px;border-radius:10px;border:none;
-          background:#6366f1;color:white;font-family:var(--mono);font-size:15px;font-weight:700;cursor:pointer">✔ Guardar</button>
+        <button onclick="fieldClearInput()" style="flex:1;padding:16px;border-radius:12px;border:1.5px solid #e5e7eb;background:white;font-family:var(--mono);font-size:14px;color:#64748b;cursor:pointer">🗑</button>
+        <button onclick="fieldCloseInput()" style="flex:1;padding:16px;border-radius:12px;border:1.5px solid #e5e7eb;background:white;font-family:var(--mono);font-size:14px;color:#64748b;cursor:pointer">Cancelar</button>
+        <button onclick="fieldSaveInput()" style="flex:3;padding:16px;border-radius:12px;border:none;background:#6366f1;color:white;font-family:var(--mono);font-size:16px;font-weight:700;cursor:pointer">✔ Guardar</button>
       </div>
     </div>`;
   modal.onclick=(e)=>{ if(e.target===modal) fieldCloseInput(); };
   document.body.appendChild(modal);
 }
 
-// ── Overlay ──────────────────────────────────────────────
+// ── Overlay ───────────────────────────────────────────────────
 function buildFieldOverlay(){
   if(document.getElementById('field-overlay')) return;
   buildFieldModal();
   const overlay=document.createElement('div');
   overlay.id='field-overlay';
-  overlay.style.cssText='position:fixed;inset:0;background:#f0f4f8;z-index:1000;'+
-    'display:none;flex-direction:column;overflow:hidden;height:100%;height:100dvh';
+  overlay.style.cssText='position:fixed;inset:0;background:#f0f4f8;z-index:1000;display:none;flex-direction:column;overflow:hidden;height:100dvh';
 
-  // Header
   const hdr=document.createElement('div');
-  hdr.style.cssText='background:#1e293b;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0';
+  hdr.style.cssText='background:#1e293b;padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2)';
   hdr.innerHTML=`<div style="flex:1">
-    <div style="font-family:var(--sans);font-size:14px;font-weight:700;color:white">📡 Vista Técnico — Desbalanceada</div>
-    <div style="font-family:var(--mono);font-size:10px;color:#94a3b8">tocá un nodo para ingresar el valor medido</div>
+    <div style="font-family:var(--sans);font-size:15px;font-weight:700;color:white">📡 Vista Técnico</div>
+    <div style="font-family:var(--mono);font-size:10px;color:#64748b;margin-top:2px">Desbalanceada · medí en cualquier punto</div>
   </div>
-  <button onclick="toggleFieldView(false)" style="background:#334155;color:white;border:none;border-radius:6px;padding:8px 14px;font-family:var(--mono);font-size:11px;cursor:pointer">← Salir</button>`;
+  <button onclick="toggleFieldView(false)" style="background:#334155;color:white;border:none;border-radius:8px;padding:9px 16px;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer">← Salir</button>`;
   overlay.appendChild(hdr);
 
-  // Control bar
   const ctrlBar=document.createElement('div');
   ctrlBar.id='field-ctrl-bar';
-  ctrlBar.style.cssText='background:#0f172a;padding:8px 14px;display:flex;align-items:center;'+
-    'gap:8px;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap';
+  ctrlBar.style.cssText='background:#0f172a;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;overflow-x:auto;white-space:nowrap';
   overlay.appendChild(ctrlBar);
 
-  // Scrollable tree
   const scroll=document.createElement('div');
-  scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;'+
-    'padding:16px 14px 48px;display:flex;flex-direction:column;align-items:center;gap:0';
+  scroll.style.cssText='flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 12px 56px';
   const tree=document.createElement('div');
   tree.id='field-tree';
-  tree.style.cssText='width:100%;max-width:400px;display:flex;flex-direction:column;align-items:center;gap:0';
+  tree.style.cssText='max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:0';
   scroll.appendChild(tree);
   overlay.appendChild(scroll);
   document.body.appendChild(overlay);
@@ -3635,58 +3857,43 @@ function buildFieldCtrlBar(){
   const bar=document.getElementById('field-ctrl-bar');
   if(!bar) return;
   bar.innerHTML='';
-  const s=STATE.desbal;
 
   const brLbl=document.createElement('span');
-  brLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b;font-weight:700;flex-shrink:0';
-  brLbl.textContent='RAMA:';
-  bar.appendChild(brLbl);
+  brLbl.style.cssText='font-family:var(--mono);font-size:11px;color:#64748b;font-weight:700';
+  brLbl.textContent='RAMA:'; bar.appendChild(brLbl);
 
   ['a','b'].forEach(br=>{
     const active=FIELD.activeBr===br;
     const btn=document.createElement('button');
-    btn.style.cssText=`padding:6px 16px;border-radius:6px;border:none;cursor:pointer;flex-shrink:0;
-      font-family:var(--mono);font-size:12px;font-weight:700;
-      background:${active?(br==='a'?'#1e40af':'#065f46'):'#334155'};
-      color:${active?'white':'#94a3b8'}`;
+    btn.style.cssText=`padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;
+      background:${active?(br==='a'?'#1e40af':'#065f46'):'#1e293b'};color:${active?'white':'#64748b'}`;
     btn.textContent='Rama '+br.toUpperCase();
     btn.onclick=()=>{ FIELD.activeBr=br; buildFieldCtrlBar(); renderFieldView(); };
     bar.appendChild(btn);
   });
 
   const sep=document.createElement('div');
-  sep.style.cssText='width:1px;height:22px;background:#334155;flex-shrink:0';
-  bar.appendChild(sep);
+  sep.style.cssText='width:1px;height:24px;background:#1e293b'; bar.appendChild(sep);
 
-  const ratLbl=document.createElement('span');
-  ratLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b;font-weight:700;flex-shrink:0';
-  ratLbl.textContent='SP%:';
-  bar.appendChild(ratLbl);
-
-  [{k:'r1a',l:'C1'},{k:'r2a',l:'C2'},{k:'r3a',l:'C3'}].forEach(({k,l})=>{
-    const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;align-items:center;gap:3px;flex-shrink:0';
-    const lbl=document.createElement('span');
-    lbl.style.cssText='font-family:var(--mono);font-size:10px;color:#94a3b8';
-    lbl.textContent=l+':';
+  // SP ratios quick edit
+  const s=STATE.desbal;
+  ['r1a','r2a','r3a'].forEach((k,i)=>{
+    const w=document.createElement('div');
+    w.style.cssText='display:flex;align-items:center;gap:4px';
+    w.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:#64748b">C${i+1}:</span>`;
     const inp=document.createElement('input');
-    inp.type='number';inp.step='5';inp.min='50';inp.max='90';inp.value=s[k];
-    inp.style.cssText='width:44px;padding:3px 5px;border:1px solid #475569;border-radius:4px;'+
-      'font-family:var(--mono);font-size:11px;background:#1e293b;color:white;text-align:right;outline:none';
-    inp.oninput=()=>{ const n=parseFloat(inp.value); if(!isNaN(n)){s[k]=n;s[k.replace('a','b')]=n;renderFieldView();} };
-    const pct=document.createElement('span');
-    pct.style.cssText='font-family:var(--mono);font-size:10px;color:#475569';
-    pct.textContent='%';
-    wrap.appendChild(lbl);wrap.appendChild(inp);wrap.appendChild(pct);
-    bar.appendChild(wrap);
+    inp.type='number'; inp.value=s[k]; inp.min=50; inp.max=90; inp.step=5;
+    inp.style.cssText='width:48px;padding:4px 6px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:white;font-family:var(--mono);font-size:11px;text-align:right';
+    inp.oninput=()=>{const n=parseFloat(inp.value);if(!isNaN(n)){s[k]=n;s[k.replace('a','b')]=n;renderFieldView();}};
+    w.appendChild(inp);
+    w.innerHTML+=`<span style="font-family:var(--mono);font-size:10px;color:#475569">%</span>`;
+    bar.appendChild(w);
   });
 
-  // Clear all button
   const clrBtn=document.createElement('button');
-  clrBtn.style.cssText='padding:5px 10px;border-radius:5px;border:1px solid #475569;background:#1e293b;'+
-    'font-family:var(--mono);font-size:10px;color:#ef4444;cursor:pointer;flex-shrink:0;margin-left:4px';
+  clrBtn.style.cssText='padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#1e293b;font-family:var(--mono);font-size:10px;color:#ef4444;cursor:pointer';
   clrBtn.textContent='🗑 Limpiar';
-  clrBtn.onclick=()=>{ if(confirm('Borrar todas las mediciones?')){FIELD.measured={};renderFieldView();} };
+  clrBtn.onclick=()=>{ if(confirm('¿Borrar todas las mediciones?')){FIELD.measured={};renderFieldView();} };
   bar.appendChild(clrBtn);
 }
 
@@ -3703,8 +3910,7 @@ function addFieldBtn(){
   const hdrBtns=document.querySelector('.hdr-btns');
   if(!hdrBtns||document.getElementById('field-btn')) return;
   const btn=document.createElement('button');
-  btn.id='field-btn'; btn.className='hbtn hbtn-s';
-  btn.textContent='📡 Técnico';
+  btn.id='field-btn'; btn.className='hbtn hbtn-s'; btn.textContent='📡 Técnico';
   btn.onclick=()=>toggleFieldView(true);
   hdrBtns.insertBefore(btn,hdrBtns.firstChild);
 }
