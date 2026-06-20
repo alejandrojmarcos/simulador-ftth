@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3289,6 +3288,16 @@ function fieldChain(br){
   ];
 }
 
+// ── Human-readable node names for technician ─────────────────
+function nodeLabel(id){
+  if(id==='hub') return 'HUB — Salida';
+  const match=id.match(/([ab])(\d)_(in|pass|onu)/);
+  if(!match) return id;
+  const [,br,num,type]=match;
+  const typeName={in:'Entrada',pass:'Salida →',onu:'Puertos clientes'}[type];
+  return `CTO ${num} — ${typeName}`;
+}
+
 // ── Main calc ────────────────────────────────────────────────
 // Returns:
 //   anchor    : id of most-upstream measured node
@@ -3397,24 +3406,10 @@ function fieldCalc(br){
   for(const id of upOrder){ if(m(id)!==null){anchor=id;break;} }
 
   const theory={};
-  theory['hub']=hubTheory; // always fixed
-  if(anchor===null){
-    // No measurements — pure theory from hub
-    propagateFwd('hub',hubTheory,theory);
-  } else if(anchor==='hub'){
-    propagateFwd('hub',m('hub'),theory);
-    theory['hub']=hubTheory; // keep hub theoretical
-  } else {
-    // Anchor is downstream: propagate backward to fill upstream, then forward
-    propagateBwd(anchor,m(anchor),theory);
-    theory['hub']=hubTheory; // always keep hub theoretical
-    propagateFwd('hub',hubTheory,theory);
-    // Override forward from anchor
-    const anchorFwd={};
-    propagateFwd(anchor,m(anchor),anchorFwd);
-    Object.assign(theory,anchorFwd);
-    theory['hub']=hubTheory;
-  }
+  theory['hub']=hubTheory; // always the theoretical value from config
+  // Theory always propagates from hubTheory regardless of any measurements
+  propagateFwd('hub',hubTheory,theory);
+  theory['hub']=hubTheory; // ensure hub stays theoretical after propagation
 
   // ── FROM-MEASUREMENT chain ───────────────────────────────────
   // fromMeas[id] = expected value at this point based on upstream measurements only.
@@ -3482,17 +3477,6 @@ function fieldCalc(br){
   if(fromMeas[`${br}4_in`]!==undefined && fromMeas[`${br}4_onu`]===undefined)
     fromMeas[`${br}4_onu`] = fromMeas[`${br}4_in`] - sp18;
 
-
-  // Human-readable names for technician
-  function nodeLabel(id){
-    if(id==='hub') return 'HUB — Salida';
-    const m=id.match(/([ab])(\d)_(in|pass|onu)/);
-    if(!m) return id;
-    const [,br,num,type]=m;
-    const brName='Rama '+br.toUpperCase();
-    const typeName={in:'Entrada',pass:'Salida →',onu:'Puertos clientes'}[type];
-    return `CTO ${num} — ${typeName}`;
-  }
 
   // Coherence validation
 
@@ -3619,6 +3603,7 @@ function renderFieldView(){
   const container = document.getElementById('field-tree');
   if(!container) return;
   container.innerHTML='';
+  try {
   const br = FIELD.activeBr;
   const {theory, fromMeas, anchor, hubTheory, warnings} = fieldCalc(br);
   const recheckIds = new Set(warnings.flatMap(w=>w.recheck?[w.recheck]:[]));
@@ -3948,10 +3933,8 @@ function renderFieldView(){
       const fmtV=v=>v!==null?(v>=0?'+':'')+v.toFixed(1)+' dBm':null;
       const anyMeasured = Object.keys(FIELD.measured).length > 0;
 
-      // Show fromMeas col when there are measurements that could differ from theory
-      const fromMeasDiffersFromTheory = fromMeasVal!==null && theoryVal!==null &&
-        Math.abs(fromMeasVal - theoryVal) > 0.05;
-      const showFromMeasCol = anyMeasured && (fromMeasDiffersFromTheory || fromMeasVal===null);
+      // Show fromMeas col whenever there are measurements (it will differ from theory)
+      const showFromMeasCol = anyMeasured;
 
       const colCount = showFromMeasCol ? 3 : 2;
       grid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
@@ -4044,6 +4027,15 @@ function renderFieldView(){
     });
 
     container.appendChild(groupCard);
+  }
+  } catch(e) {
+    container.innerHTML='';
+    const errDiv=document.createElement('div');
+    errDiv.style.cssText='background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:14px;font-family:var(--mono);font-size:11px;color:#991b1b;margin:10px';
+    errDiv.innerHTML='<b>Error:</b> '+e.message+'<br><pre style="font-size:9px;margin-top:6px;white-space:pre-wrap;overflow:auto">'+
+      (e.stack||'').split('\n').slice(0,6).join('\n')+'</pre>';
+    container.appendChild(errDiv);
+    console.error('renderFieldView error:',e);
   }
 }
 
