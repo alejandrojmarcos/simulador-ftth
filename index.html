@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3242,6 +3243,11 @@ const FIELD = {
   measured: {},  // nodeId -> raw dBm
   activeBr: 'a',
   len: { a:{hc1:null,c1c2:null,c2c3:null,c3c4:null}, b:{hc1:null,c1c2:null,c2c3:null,c3c4:null} },
+  settings: {
+    incoherenceThreshold: 2.0,  // dB — max acceptable delta between measured and expected
+    suspiciousThreshold:  4.0,  // dB — when warnings panel fires (broader check)
+    instrument: 'OPM',          // label only
+  },
 };
 
 function fieldLenGet(br,seg){
@@ -3290,12 +3296,6 @@ function fieldChain(br){
 //   fromMeas  : {id->dBm} — calculated forward from each measurement
 //               each node uses the closest upstream measurement as its base
 //   hubTheory : theoretical hub output from config (always fixed)
-
-
-
-
-
-
 function fieldCalc(br){
   const {sp18,spP,spT,fib,hubTheory} = fieldPhysics(br);
   const m = id => (FIELD.measured[id]!==undefined ? FIELD.measured[id] : null);
@@ -3352,6 +3352,7 @@ function fieldCalc(br){
     for(let i=0;i<ids2.length;i++){
       const id=ids2[i];
       if(out[id]!==undefined&&i+1<ids2.length&&out[ids2[i+1]]===undefined&&losses2[i+1]!==null){
+        // for _in -> _pass/_onu already handled, for _pass -> next _in use fiber
         if(id.endsWith('_pass')){
           const nextIn=ids2[i+1]; if(nextIn&&nextIn.endsWith('_in')) out[nextIn]=out[id]-losses2[i+1];
         }
@@ -3372,6 +3373,7 @@ function fieldCalc(br){
     if(baseVal===null) return;
     out[base]=baseVal;
     const set=(id,v)=>{ if(!(id in out)) out[id]=v; };
+    // Walk backwards recovering upstream values
     if(base===`${br}4_onu`)  { set(`${br}4_in`, baseVal+sp18); base=`${br}4_in`; baseVal=out[base]; }
     if(base===`${br}4_in`)   { set(`${br}3_pass`,baseVal+fib('c3c4')); base=`${br}3_pass`; baseVal=out[base]; }
     if(base===`${br}3_onu`)  { set(`${br}3_in`, baseVal+spT(2)+sp18); base=`${br}3_in`; baseVal=out[base]; }
@@ -3386,6 +3388,7 @@ function fieldCalc(br){
   }
 
   // ── THEORY chain (anchor-based) ─────────────────────────────
+  // Find most-upstream measured node = anchor
   const upOrder=['hub',`${br}1_in`,`${br}1_pass`,`${br}1_onu`,
     `${br}2_in`,`${br}2_pass`,`${br}2_onu`,
     `${br}3_in`,`${br}3_pass`,`${br}3_onu`,
@@ -3394,16 +3397,19 @@ function fieldCalc(br){
   for(const id of upOrder){ if(m(id)!==null){anchor=id;break;} }
 
   const theory={};
-  theory['hub']=hubTheory; 
+  theory['hub']=hubTheory; // always fixed
   if(anchor===null){
+    // No measurements — pure theory from hub
     propagateFwd('hub',hubTheory,theory);
   } else if(anchor==='hub'){
     propagateFwd('hub',m('hub'),theory);
-    theory['hub']=hubTheory; 
+    theory['hub']=hubTheory; // keep hub theoretical
   } else {
+    // Anchor is downstream: propagate backward to fill upstream, then forward
     propagateBwd(anchor,m(anchor),theory);
-    theory['hub']=hubTheory; 
+    theory['hub']=hubTheory; // always keep hub theoretical
     propagateFwd('hub',hubTheory,theory);
+    // Override forward from anchor
     const anchorFwd={};
     propagateFwd(anchor,m(anchor),anchorFwd);
     Object.assign(theory,anchorFwd);
@@ -3411,53 +3417,156 @@ function fieldCalc(br){
   }
 
   // ── FROM-MEASUREMENT chain ───────────────────────────────────
+  // fromMeas[id] = expected value at this point based on upstream measurements only.
+  //   - Only populated AFTER the first measurement is encountered going downstream.
+  //   - If there's no measurement upstream of a node, fromMeas[id] is undefined.
+  //   - When a measurement is found, it becomes the new propagation base.
+  //   - fromMeas[id] always stores the CALCULATED value (not the raw measured),
+  //     so it shows "what you should find here given the last upstream measurement".
   const fromMeas = {};
-  fromMeas['hub'] = hubTheory;
-  let curState = m('hub') !== null ? m('hub') : hubTheory;
+  const mainChain = [
+    {id:'hub'},
+    {id:`${br}1_in`,   loss: ()=>fib('hc1')},
+    {id:`${br}1_pass`, loss: ()=>spP(0)},
+    {id:`${br}2_in`,   loss: ()=>fib('c1c2')},
+    {id:`${br}2_pass`, loss: ()=>spP(1)},
+    {id:`${br}3_in`,   loss: ()=>fib('c2c3')},
+    {id:`${br}3_pass`, loss: ()=>spP(2)},
+    {id:`${br}4_in`,   loss: ()=>fib('c3c4')},
+    {id:`${br}4_onu`,  loss: ()=>sp18},
+  ];
+  const onuBranch = {
+    [`${br}1_in`]: {id:`${br}1_onu`, loss:()=>spT(0)+sp18},
+    [`${br}2_in`]: {id:`${br}2_onu`, loss:()=>spT(1)+sp18},
+    [`${br}3_in`]: {id:`${br}3_onu`, loss:()=>spT(2)+sp18},
+    [`${br}4_in`]: {id:`${br}4_onu`, loss:()=>sp18},
+  };
 
-  function resolveCTO(ctoNum, prevPassState, fibLoss) {
-    const idIn = `${br}${ctoNum}_in`;
-    const idPass = `${br}${ctoNum}_pass`;
-    const idOnu = `${br}${ctoNum}_onu`;
-    
-    // 1. Predicciones llegando a esta CTO (para la UI)
-    fromMeas[idIn] = prevPassState - fibLoss;
-    if (ctoNum < 4) {
-      fromMeas[idPass] = fromMeas[idIn] - spP(ctoNum-1);
-      fromMeas[idOnu]  = fromMeas[idIn] - spT(ctoNum-1) - sp18;
-    } else {
-      fromMeas[idOnu]  = fromMeas[idIn] - sp18;
-    }
-    
-    // 2. Determinar la realidad física en la entrada (para propagar)
-    let trueIn = fromMeas[idIn];
-    if (m(idIn) !== null) {
-      trueIn = m(idIn);
-    } else if (m(idOnu) !== null) {
-      trueIn = ctoNum === 4 ? m(idOnu) + sp18 : m(idOnu) + spT(ctoNum-1) + sp18;
-    } else if (ctoNum < 4 && m(idPass) !== null) {
-      trueIn = m(idPass) + spP(ctoNum-1);
-    }
-    
-    // 3. Estado de salida hacia la próxima CTO
-    let outPass = null;
-    if (ctoNum < 4) {
-      if (m(idPass) !== null) {
-        outPass = m(idPass);
+  let cur = null;         // null = no upstream measurement yet
+  let active = false;     // true once we've hit a measurement
+
+  for(let i=0; i<mainChain.length; i++){
+    const node = mainChain[i];
+    const prevId = i>0 ? mainChain[i-1].id : null;
+
+    // Apply loss from previous node (only if we're active)
+    if(active && node.loss) cur = cur - node.loss();
+
+    // Check if this node has a measurement
+    const mv = m(node.id);
+    if(mv !== null){
+      if(!active){
+        // First measurement — activate and use measured as base
+        active = true;
+        cur = mv;
+        fromMeas[node.id] = cur; // first measured node: fromMeas = measured itself
       } else {
-        outPass = trueIn - spP(ctoNum-1);
+        // Already active: fromMeas = calculated (what we expected), cur switches to measured
+        fromMeas[node.id] = cur;  // calculated expected
+        cur = mv;                  // switch base to measured for downstream
       }
+    } else if(active){
+      // Active and not measured: fromMeas = calculated from last measurement
+      fromMeas[node.id] = cur;
     }
-    return outPass;
+    // else: not yet active, no measurement — skip (fromMeas[id] stays undefined)
+
+    // Compute onu branch only if the _in node has a fromMeas value
+    if(prevId && onuBranch[prevId] && fromMeas[prevId]!==undefined){
+      const onu = onuBranch[prevId];
+      if(fromMeas[onu.id]===undefined)
+        fromMeas[onu.id] = fromMeas[prevId] - onu.loss();
+    }
+  }
+  // Handle onu for last _in node
+  if(fromMeas[`${br}4_in`]!==undefined && fromMeas[`${br}4_onu`]===undefined)
+    fromMeas[`${br}4_onu`] = fromMeas[`${br}4_in`] - sp18;
+
+
+  // Human-readable names for technician
+  function nodeLabel(id){
+    if(id==='hub') return 'HUB — Salida';
+    const m=id.match(/([ab])(\d)_(in|pass|onu)/);
+    if(!m) return id;
+    const [,br,num,type]=m;
+    const brName='Rama '+br.toUpperCase();
+    const typeName={in:'Entrada',pass:'Salida →',onu:'Puertos clientes'}[type];
+    return `CTO ${num} — ${typeName}`;
   }
 
-  curState = resolveCTO(1, curState, fib('hc1'));
-  curState = resolveCTO(2, curState, fib('c1c2'));
-  curState = resolveCTO(3, curState, fib('c2c3'));
-  resolveCTO(4, curState, fib('c3c4'));
+  // Coherence validation
 
-  return { theory, fromMeas, anchor, hubTheory };
+  // Detect physically impossible or suspicious measurement combinations
+  const warnings = [];
+
+  // Check 1: downstream measured value higher than upstream calculated (impossible)
+  const mainOrder = ['hub',`${br}1_in`,`${br}1_pass`,`${br}2_in`,`${br}2_pass`,`${br}3_in`,`${br}3_pass`,`${br}4_in`,`${br}4_onu`];
+  for(let i=1; i<mainOrder.length; i++){
+    const upId = mainOrder[i-1];
+    const dnId = mainOrder[i];
+    const upVal = m(upId) ?? fromMeas[upId];
+    const dnVal = m(dnId);
+    if(upVal!==undefined && upVal!==null && dnVal!==null){
+      if(dnVal > upVal + 0.5){ // 0.5 dB tolerance for rounding
+        warnings.push({
+          type:'impossible',
+          ids:[upId, dnId],
+          msg:`⚡ Imposible: ${nodeLabel(dnId)} medido (${dnVal>0?'+':''}${dnVal.toFixed(1)} dBm) es mayor que ${nodeLabel(upId)} (${upVal>0?'+':''}${upVal.toFixed(1)} dBm). La señal no puede aumentar en la red.`,
+          recheck: dnId,
+        });
+      }
+    }
+  }
+
+  // Check 2: measured value very far from fromMeas expected (suspicious, needs remeasure)
+  const SUSPICIOUS_DB = FIELD.settings.suspiciousThreshold;
+  mainOrder.forEach(id=>{
+    const mv = m(id);
+    const fm = fromMeas[id];
+    if(mv!==null && fm!==undefined){
+      const delta = Math.abs(mv - fm);
+      if(delta > SUSPICIOUS_DB){
+        // Only warn if there's an upstream measurement that makes fromMeas reliable
+        const hasUpstreamMeas = mainOrder.slice(0, mainOrder.indexOf(id))
+          .some(uid=>m(uid)!==null);
+        if(hasUpstreamMeas){
+          warnings.push({
+            type:'suspicious',
+            ids:[id],
+            msg:`⚠ ${nodeLabel(id)}: medición (${mv>0?'+':''}${mv.toFixed(1)} dBm) difiere ${delta.toFixed(1)} dB del esperado (${fm>0?'+':''}${fm.toFixed(1)} dBm). Volver a medir este punto.`,
+            recheck: id,
+          });
+        }
+      }
+    }
+  });
+
+  // Check 3: two measured values that are inconsistent with each other
+  // If CTO1_pass=-8 and CTO4_in=-8 but CTO4_in should be ~CTO1_pass - losses(~5dB)
+  const measuredIds = mainOrder.filter(id=>m(id)!==null);
+  for(let i=0; i<measuredIds.length-1; i++){
+    for(let j=i+1; j<measuredIds.length; j++){
+      const idA=measuredIds[i], idB=measuredIds[j];
+      const mA=m(idA), mB=m(idB);
+      // What does fromMeas say idB should be, given idA?
+      const expectedB = fromMeas[idB];
+      if(expectedB!==undefined){
+        const diff = Math.abs(mB - expectedB);
+        if(diff > SUSPICIOUS_DB && !warnings.find(w=>w.ids.includes(idB))){
+          warnings.push({
+            type:'inconsistent',
+            ids:[idA, idB],
+            msg:`🔄 ${nodeLabel(idB)}: medición (${mB>0?'+':''}${mB.toFixed(1)} dBm) no coincide con lo esperado desde ${nodeLabel(idA)} (esperado: ${expectedB>0?'+':''}${expectedB.toFixed(1)} dBm, diferencia: ${diff.toFixed(1)} dB). Verificar ambos puntos.`,
+            recheck: idB,
+          });
+        }
+      }
+    }
+  }
+
+  return { theory, fromMeas, anchor, hubTheory, warnings };
 }
+
 // ── Delta badge ───────────────────────────────────────────────
 function fieldDeltaBadge(expected, measured){
   if(measured===null||measured===undefined) return null;
@@ -3511,7 +3620,8 @@ function renderFieldView(){
   if(!container) return;
   container.innerHTML='';
   const br = FIELD.activeBr;
-  const {theory, fromMeas, anchor, hubTheory} = fieldCalc(br);
+  const {theory, fromMeas, anchor, hubTheory, warnings} = fieldCalc(br);
+  const recheckIds = new Set(warnings.flatMap(w=>w.recheck?[w.recheck]:[]));
   const chain = fieldChain(br);
   const s = STATE.desbal;
   const rr = s.indep?[s[`r1${br}`],s[`r2${br}`],s[`r3${br}`]]:[s.r1a,s.r2a,s.r3a];
@@ -3547,7 +3657,8 @@ function renderFieldView(){
   legend.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:white;border-radius:10px;border:1px solid #e5e7eb';
   [
     {dot:'#f97316',txt:'Ancla activa'},
-    {dot:'#1d4ed8',txt:'Calculado'},
+    {dot:'#1d4ed8',txt:'📐 Teórico'},
+    {dot:'#059669',txt:'📊 Desde medición'},
     {dot:'#15803d',txt:'Medido OK'},
     {dot:'#b45309',txt:'Medido ⚠'},
     {dot:'#dc2626',txt:'Medido ✗'},
@@ -3559,6 +3670,33 @@ function renderFieldView(){
     legend.appendChild(el);
   });
   container.appendChild(legend);
+
+  // ── Warnings panel ──
+  if(warnings.length>0){
+    const wPanel=document.createElement('div');
+    wPanel.style.cssText='background:#1e293b;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px';
+    const wTitle=document.createElement('div');
+    wTitle.style.cssText='font-family:var(--sans);font-size:12px;font-weight:700;color:#f97316;margin-bottom:4px';
+    wTitle.textContent='⚠ Alertas de coherencia';
+    wPanel.appendChild(wTitle);
+    warnings.forEach(w=>{
+      const wRow=document.createElement('div');
+      wRow.style.cssText=`padding:9px 12px;border-radius:8px;font-family:var(--mono);font-size:11px;line-height:1.5;
+        background:${w.type==='impossible'?'#450a0a':w.type==='inconsistent'?'#1c1917':'#172554'};
+        border-left:3px solid ${w.type==='impossible'?'#dc2626':w.type==='inconsistent'?'#f97316':'#f59e0b'};
+        color:${w.type==='impossible'?'#fca5a5':w.type==='inconsistent'?'#fdba74':'#fde68a'}`;
+      wRow.textContent=w.msg;
+      if(w.recheck){
+        const btn=document.createElement('button');
+        btn.textContent='📍 Volver a medir: '+nodeLabel(w.recheck);
+        btn.style.cssText='margin-top:5px;display:block;font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;background:rgba(255,255,255,.1);color:white;border:1px solid rgba(255,255,255,.2);cursor:pointer';
+        btn.onclick=()=>fieldOpenInput(w.recheck, nodeLabel(w.recheck));
+        wRow.appendChild(btn);
+      }
+      wPanel.appendChild(wRow);
+    });
+    container.appendChild(wPanel);
+  }
 
   // ── Node card builder ──
   function makeCard(node){
@@ -3749,9 +3887,12 @@ function renderFieldView(){
         const div=document.createElement('div'); div.style.cssText='height:1px;background:#f1f5f9'; groupCard.appendChild(div);
       }
 
+      const isRecheck = recheckIds.has(id);
+
       // Left bar color
       let leftBar;
       if(isAnchor) leftBar='#f97316';
+      else if(isRecheck) leftBar='#dc2626';
       else if(hasMeasured) leftBar = badgeVsTheory?badgeVsTheory.color:'#94a3b8';
       else if(theoryVal!==null||fromMeasVal!==null) leftBar='#3b82f6';
       else leftBar='#e5e7eb';
@@ -3780,6 +3921,11 @@ function renderFieldView(){
         ab.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;background:#fff7ed;color:#ea580c;padding:2px 8px;border-radius:10px;border:1px solid #fed7aa';
         ab.textContent='⚓ ANCLA'; titleRow2.appendChild(ab);
       }
+      if(isRecheck){
+        const rb=document.createElement('span');
+        rb.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:10px;border:1px solid #fca5a5';
+        rb.textContent='🔄 VOLVER A MEDIR'; titleRow2.appendChild(rb);
+      }
       rowContent.appendChild(titleRow2);
 
       // Three-column grid: Esp. Ancla | Esp. Medición | Medido
@@ -3800,34 +3946,66 @@ function renderFieldView(){
       }
 
       const fmtV=v=>v!==null?(v>=0?'+':'')+v.toFixed(1)+' dBm':null;
+      const anyMeasured = Object.keys(FIELD.measured).length > 0;
 
-      // Col 1: Esperado Ancla (theory)
+      // Show fromMeas col when there are measurements that could differ from theory
+      const fromMeasDiffersFromTheory = fromMeasVal!==null && theoryVal!==null &&
+        Math.abs(fromMeasVal - theoryVal) > 0.05;
+      const showFromMeasCol = anyMeasured && (fromMeasDiffersFromTheory || fromMeasVal===null);
+
+      const colCount = showFromMeasCol ? 3 : 2;
+      grid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+
+      // Col 1: Teórico (theory — always from config)
       grid.appendChild(valBox(
-        '📍 Ancla',
+        '📐 Teórico',
         fmtV(theoryVal),
         theoryVal!==null?valC(theoryVal):'#cbd5e1',
         theoryVal!==null?'#f0f9ff':'#f8fafc',
         theoryVal!==null?'#bae6fd':'#e5e7eb'
       ));
 
-      // Col 2: Esperado Medición (fromMeas)
-      // Highlight if different from theory (possible problem indicator)
-      const measDiff = (theoryVal!==null&&fromMeasVal!==null) ? Math.abs(fromMeasVal-theoryVal) : null;
-      const measDiffColor = measDiff===null?'#cbd5e1':measDiff<=1?'#059669':measDiff<=3?'#b45309':'#dc2626';
-      const measDiffBg    = measDiff===null?'#f8fafc':measDiff<=1?'#f0fdf4':measDiff<=3?'#fffbeb':'#fef2f2';
-      const measDiffBrd   = measDiff===null?'#e5e7eb':measDiff<=1?'#86efac':measDiff<=3?'#fde68a':'#fca5a5';
-      grid.appendChild(valBox(
-        '📊 Medición',
-        fmtV(fromMeasVal),
-        fromMeasVal!==null?valC(fromMeasVal):'#cbd5e1',
-        measDiffBg, measDiffBrd
-      ));
+      // Col 2: Desde medición (fromMeas) — only when different from theory
+      if(showFromMeasCol){
+        const measDiff = (fromMeasVal!==null&&theoryVal!==null)?Math.abs(fromMeasVal-theoryVal):0;
+        const measDiffBg  = measDiff<=1?'#f0fdf4':measDiff<=3?'#fffbeb':'#fef2f2';
+        const measDiffBrd = measDiff<=1?'#86efac':measDiff<=3?'#fde68a':'#fca5a5';
+        grid.appendChild(valBox(
+          '📊 Desde medición',
+          fmtV(fromMeasVal),
+          fromMeasVal!==null?valC(fromMeasVal):'#cbd5e1',
+          fromMeasVal!==null?measDiffBg:'#f8fafc',
+          fromMeasVal!==null?measDiffBrd:'#e5e7eb'
+        ));
+      }
 
-      // Col 3: Medido
+      // Determine if measured value is incoherent with fromMeas chain
+      const INCOHERENCE_THRESHOLD = FIELD.settings.incoherenceThreshold;
+      const chainOrderForCheck = ['hub',`${br}1_in`,`${br}1_pass`,`${br}1_onu`,`${br}2_in`,`${br}2_pass`,`${br}2_onu`,`${br}3_in`,`${br}3_pass`,`${br}3_onu`,`${br}4_in`,`${br}4_onu`];
+      const idxInChain = chainOrderForCheck.indexOf(id);
+      const hasUpstreamMeas = idxInChain > 0 &&
+        chainOrderForCheck.slice(0, idxInChain).some(uid=>FIELD.measured[uid]!==undefined);
+      const isIncoherent = hasMeasured && fromMeasVal!==null && hasUpstreamMeas &&
+        Math.abs(rawMeasured - fromMeasVal) > INCOHERENCE_THRESHOLD;
+
+      // Last col: Medido
       if(hasMeasured){
-        const mb=valBox('🔬 Medido', fmtV(rawMeasured), '#0f172a',
-          badgeVsTheory?badgeVsTheory.bg+'dd':'#f8fafc',
-          badgeVsTheory?badgeVsTheory.color+'88':'#e5e7eb', true);
+        const incoherentStyle = isIncoherent ? {
+          bg:'#f1f5f9', border:'#cbd5e1', color:'#94a3b8', label:'⚠ Medido'
+        } : {
+          bg: badgeVsTheory?badgeVsTheory.bg+'dd':'#f8fafc',
+          border: badgeVsTheory?badgeVsTheory.color+'88':'#e5e7eb',
+          color:'#0f172a', label:'🔬 Medido'
+        };
+        const mb=valBox(incoherentStyle.label, fmtV(rawMeasured), incoherentStyle.color,
+          incoherentStyle.bg, incoherentStyle.border, true);
+        if(isIncoherent){
+          // Add "volver a medir" hint inside the box
+          const hint=document.createElement('div');
+          hint.style.cssText='font-family:var(--mono);font-size:9px;color:#94a3b8;margin-top:4px;line-height:1.4';
+          hint.textContent='dato sospechoso — volver a medir';
+          mb.appendChild(hint);
+        }
         grid.appendChild(mb);
       } else {
         const noBox=document.createElement('div');
@@ -3837,21 +4015,28 @@ function renderFieldView(){
       }
       rowContent.appendChild(grid);
 
-      // Delta badge — vs theory
-      if(badgeVsTheory){
+      // Delta badges — only show when coherent
+      if(badgeVsTheory && !isIncoherent){
         const wrap=document.createElement('div');
         wrap.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px';
         const b1=document.createElement('div');
         b1.style.cssText=`padding:6px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:${badgeVsTheory.color};background:${badgeVsTheory.bg}`;
         b1.textContent=`vs Ancla: ${badgeVsTheory.txt} ${badgeVsTheory.icon}`;
         wrap.appendChild(b1);
-        if(badgeVsMeas&&fromMeasVal!==null&&Math.abs(fromMeasVal-theoryVal||0)>0.1){
+        if(badgeVsMeas&&fromMeasVal!==null&&Math.abs((fromMeasVal-theoryVal)||0)>0.1){
           const b2=document.createElement('div');
           b2.style.cssText=`padding:6px;border-radius:8px;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:${badgeVsMeas.color};background:${badgeVsMeas.bg}`;
           b2.textContent=`vs Medición: ${badgeVsMeas.txt} ${badgeVsMeas.icon}`;
           wrap.appendChild(b2);
         }
         rowContent.appendChild(wrap);
+      } else if(isIncoherent){
+        // Show incoherence warning instead of delta
+        const warn=document.createElement('div');
+        warn.style.cssText='margin-top:8px;padding:7px 10px;border-radius:8px;background:#fef3c7;border:1px solid #fde68a;font-family:var(--mono);font-size:11px;color:#92400e;text-align:center';
+        const diff=(rawMeasured-fromMeasVal);
+        warn.textContent=`⚠ Dato sospechoso: difiere ${diff>=0?'+':''}${diff.toFixed(1)} dB de lo esperado por la cadena. Volver a medir este punto.`;
+        rowContent.appendChild(warn);
       }
 
       row.appendChild(rowContent);
@@ -3921,36 +4106,28 @@ function buildFieldCtrlBar(){
   const bar=document.getElementById('field-ctrl-bar');
   if(!bar) return;
   bar.innerHTML='';
-
-  const brLbl=document.createElement('span');
-  brLbl.style.cssText='font-family:var(--mono);font-size:11px;color:#64748b;font-weight:700';
-  brLbl.textContent='RAMA:'; bar.appendChild(brLbl);
-
-  ['a','b'].forEach(br=>{
-    const active=FIELD.activeBr===br;
-    const btn=document.createElement('button');
-    btn.style.cssText=`padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;
-      background:${active?(br==='a'?'#1e40af':'#065f46'):'#1e293b'};color:${active?'white':'#64748b'}`;
-    btn.textContent='Rama '+br.toUpperCase();
-    btn.onclick=()=>{ FIELD.activeBr=br; buildFieldCtrlBar(); renderFieldView(); };
-    bar.appendChild(btn);
-  });
-
-  const sep=document.createElement('div');
-  sep.style.cssText='width:1px;height:24px;background:#1e293b'; bar.appendChild(sep);
+  const s=STATE.desbal;
 
   // SP ratios quick edit
-  const s=STATE.desbal;
+  const ratLbl=document.createElement('span');
+  ratLbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b;font-weight:700';
+  ratLbl.textContent='SP%:'; bar.appendChild(ratLbl);
+
   ['r1a','r2a','r3a'].forEach((k,i)=>{
     const w=document.createElement('div');
     w.style.cssText='display:flex;align-items:center;gap:4px';
-    w.innerHTML=`<span style="font-family:var(--mono);font-size:10px;color:#64748b">C${i+1}:</span>`;
+    const lbl=document.createElement('span');
+    lbl.style.cssText='font-family:var(--mono);font-size:10px;color:#64748b';
+    lbl.textContent=`C${i+1}:`;
     const inp=document.createElement('input');
-    inp.type='number'; inp.value=s[k]; inp.min=50; inp.max=90; inp.step=5;
+    inp.type='number'; inp.id=`field-ratio-${k}`; inp.name=`field-ratio-${k}`;
+    inp.value=s[k]; inp.min=50; inp.max=90; inp.step=5;
     inp.style.cssText='width:48px;padding:4px 6px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:white;font-family:var(--mono);font-size:11px;text-align:right';
     inp.oninput=()=>{const n=parseFloat(inp.value);if(!isNaN(n)){s[k]=n;s[k.replace('a','b')]=n;renderFieldView();}};
-    w.appendChild(inp);
-    w.innerHTML+=`<span style="font-family:var(--mono);font-size:10px;color:#475569">%</span>`;
+    const pct=document.createElement('span');
+    pct.style.cssText='font-family:var(--mono);font-size:10px;color:#475569';
+    pct.textContent='%';
+    w.appendChild(lbl); w.appendChild(inp); w.appendChild(pct);
     bar.appendChild(w);
   });
 
@@ -3959,6 +4136,92 @@ function buildFieldCtrlBar(){
   clrBtn.textContent='🗑 Limpiar';
   clrBtn.onclick=()=>{ if(confirm('¿Borrar todas las mediciones?')){FIELD.measured={};renderFieldView();} };
   bar.appendChild(clrBtn);
+
+  const cfgBtn=document.createElement('button');
+  cfgBtn.style.cssText='padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#1e293b;font-family:var(--mono);font-size:10px;color:#94a3b8;cursor:pointer';
+  cfgBtn.textContent='⚙ Config';
+  cfgBtn.onclick=()=>{
+    if(!document.getElementById('field-settings-panel')) buildFieldSettings();
+    document.getElementById('field-settings-panel').style.display='flex';
+  };
+  bar.appendChild(cfgBtn);
+}
+
+function buildFieldSettings(){
+  if(document.getElementById('field-settings-panel')) return;
+  const overlay=document.createElement('div');
+  overlay.id='field-settings-panel';
+  overlay.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;align-items:flex-end;justify-content:center';
+
+  const panel=document.createElement('div');
+  panel.style.cssText='background:#1e293b;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;box-sizing:border-box';
+
+  const titleRow=document.createElement('div');
+  titleRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:20px';
+  const titleEl=document.createElement('div');
+  titleEl.style.cssText='font-family:var(--sans);font-size:16px;font-weight:700;color:white';
+  titleEl.textContent='⚙ Configuración de campo';
+  const closeBtn=document.createElement('button');
+  closeBtn.textContent='✕';
+  closeBtn.style.cssText='background:none;border:none;color:#64748b;font-size:20px;cursor:pointer';
+  closeBtn.onclick=()=>overlay.style.display='none';
+  titleRow.appendChild(titleEl); titleRow.appendChild(closeBtn);
+  panel.appendChild(titleRow);
+
+  function settingRow(label, sublabel, key, min, max, step){
+    const row=document.createElement('div');
+    row.style.cssText='margin-bottom:18px;padding:14px;background:#0f172a;border-radius:12px;border:1px solid #334155';
+    row.innerHTML=`<div style="font-family:var(--sans);font-size:13px;font-weight:600;color:white;margin-bottom:3px">${label}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:#475569;margin-bottom:10px">${sublabel}</div>`;
+    const inputRow=document.createElement('div');
+    inputRow.style.cssText='display:flex;align-items:center;gap:10px';
+    const inp=document.createElement('input');
+    inp.type='number'; inp.value=FIELD.settings[key]; inp.min=min; inp.max=max; inp.step=step;
+    inp.name='field-cfg-'+key; inp.id='field-cfg-'+key;
+    inp.style.cssText='width:80px;padding:8px 12px;border:1.5px solid #334155;border-radius:8px;background:#1e293b;color:white;font-family:var(--mono);font-size:18px;text-align:center;outline:none';
+    inp.oninput=()=>{ const n=parseFloat(inp.value); if(!isNaN(n)) FIELD.settings[key]=n; };
+    inp.onfocus=()=>inp.style.borderColor='#6366f1';
+    inp.onblur=()=>inp.style.borderColor='#334155';
+    const unit=document.createElement('span');
+    unit.style.cssText='font-family:var(--mono);font-size:13px;color:#475569';
+    unit.textContent='dB';
+    inputRow.appendChild(inp); inputRow.appendChild(unit);
+    row.appendChild(inputRow);
+    return row;
+  }
+
+  panel.appendChild(settingRow('Tolerancia de coherencia',
+    'Diferencia máxima entre medido y esperado. Si se supera, el dato se grisa como sospechoso.',
+    'incoherenceThreshold', 0.5, 10, 0.5));
+
+  panel.appendChild(settingRow('Umbral de alerta',
+    'Diferencia para mostrar alertas en el panel superior.',
+    'suspiciousThreshold', 1, 15, 0.5));
+
+  // Instrument
+  const instrRow=document.createElement('div');
+  instrRow.style.cssText='margin-bottom:20px;padding:14px;background:#0f172a;border-radius:12px;border:1px solid #334155';
+  instrRow.innerHTML=`<div style="font-family:var(--sans);font-size:13px;font-weight:600;color:white;margin-bottom:3px">Instrumento</div>
+    <div style="font-family:var(--mono);font-size:10px;color:#475569;margin-bottom:10px">Nombre del OPM / OTDR para identificar las mediciones</div>`;
+  const instrInp=document.createElement('input');
+  instrInp.type='text'; instrInp.value=FIELD.settings.instrument;
+  instrInp.name='field-cfg-instrument'; instrInp.id='field-cfg-instrument';
+  instrInp.style.cssText='width:100%;padding:10px 12px;border:1.5px solid #334155;border-radius:8px;background:#1e293b;color:white;font-family:var(--mono);font-size:14px;box-sizing:border-box;outline:none';
+  instrInp.oninput=()=>{ FIELD.settings.instrument=instrInp.value; };
+  instrInp.onfocus=()=>instrInp.style.borderColor='#6366f1';
+  instrInp.onblur=()=>instrInp.style.borderColor='#334155';
+  instrRow.appendChild(instrInp);
+  panel.appendChild(instrRow);
+
+  const applyBtn=document.createElement('button');
+  applyBtn.style.cssText='width:100%;padding:14px;border-radius:12px;border:none;background:#6366f1;color:white;font-family:var(--mono);font-size:15px;font-weight:700;cursor:pointer';
+  applyBtn.textContent='✔ Aplicar';
+  applyBtn.onclick=()=>{ overlay.style.display='none'; renderFieldView(); };
+  panel.appendChild(applyBtn);
+
+  overlay.onclick=(e)=>{ if(e.target===overlay) overlay.style.display='none'; };
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
 }
 
 function toggleFieldView(show){
